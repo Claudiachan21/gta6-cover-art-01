@@ -1,364 +1,245 @@
-// Sunset Press — the cover renderer. One function draws the whole poster:
-// photo panels clipped to the layout, the colour grade, the frame, then the
-// caption. The editor preview and the PNG export both call renderCover, so
-// what you see is exactly what you share.
-import { LAYOUTS, GRADES } from './presets.js';
+// Sunset Press — renderCover: one function draws the cover for the live
+// preview and for the exported PNG, so what you see is what you get.
+// Steps: photo panels (clipped to diagonal polygons) → paper dividers →
+// grade washes → caption + pink rule + sub-caption + sun badge → ink frame.
 
-const INK = '#0E1A24';
-const SUN = '#FFD94D';
-const ORANGE = '#FF6B35';
-const PINK = '#FF5A8A';
-const WHITE = '#FFFFFF';
+import { INK, PAPER, SUN, LAYOUTS, GRADES, SIZES } from './presets.js';
 
-function polyPath(ctx, pts, W, H) {
-  ctx.beginPath();
-  pts.forEach(([fx, fy], i) => {
-    const x = fx * W;
-    const y = fy * H;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.closePath();
+// Measure a line of Anton at a given pixel size.
+function lineWidth(ctx, text, px) {
+  ctx.font = `${px}px Anton, sans-serif`;
+  return ctx.measureText(text).width;
 }
 
-function drawPanelPhoto(ctx, slot, photo, panel, W, H) {
-  if (!photo || !photo.img || !photo.img.complete || photo.img.naturalWidth === 0) return;
-  const xs = slot.map(([fx]) => fx * W);
-  const ys = slot.map(([, fy]) => fy * H);
-  const x0 = Math.min(...xs);
-  const x1 = Math.max(...xs);
-  const y0 = Math.min(...ys);
-  const y1 = Math.max(...ys);
-  const sw = x1 - x0;
-  const sh = y1 - y0;
-  const iw = photo.img.naturalWidth;
-  const ih = photo.img.naturalHeight;
-  const base = Math.max(sw / iw, sh / ih);
-  const scale = base * (panel.zoom || 1);
-  const dw = iw * scale;
-  const dh = ih * scale;
-  // Per-photo focal point (0..1, 0.5 = centre): the photo anchors on it, so a
-  // subject near the top (a face, a sign) is never cropped out of a short
-  // panel. Dragging a panel shifts the window from that anchor.
-  const fx = photo.fx == null ? 0.5 : photo.fx;
-  const fy = photo.fy == null ? 0.5 : photo.fy;
-  const dx = Math.max(x1 - dw, Math.min(x0, x0 + (sw - dw) * fx + (panel.ox || 0) * sw));
-  const dy = Math.max(y1 - dh, Math.min(y0, y0 + (sh - dh) * fy + (panel.oy || 0) * sh));
-  ctx.save();
-  polyPath(ctx, slot, W, H);
-  ctx.clip();
-  ctx.drawImage(photo.img, dx, dy, dw, dh);
-  ctx.restore();
+// Fit a caption into maxW. Rule from the approved design: try one line at
+// the nominal size; if it would need to shrink below 72% of nominal, wrap
+// into two balanced lines at nominal size instead and only shrink those to
+// fit. Returns { lines, size }.
+export function fitCaption(ctx, text, maxW, nominal) {
+  const one = lineWidth(ctx, text, nominal);
+  if (one <= maxW) return { lines: [text], size: nominal };
+  const ratio = maxW / one;
+  if (ratio >= 0.72) return { lines: [text], size: nominal * ratio };
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length < 2) return { lines: [text], size: nominal * ratio };
+  let best = null;
+  for (let cut = 1; cut < words.length; cut++) {
+    const a = words.slice(0, cut).join(' ');
+    const b = words.slice(cut).join(' ');
+    const w = Math.max(lineWidth(ctx, a, nominal), lineWidth(ctx, b, nominal));
+    if (!best || w < best.w) best = { lines: [a, b], w };
+  }
+  const size = Math.min(nominal, (nominal * maxW) / best.w);
+  return { lines: best.lines, size };
 }
 
-function drawEmptySlot(ctx, slot, W, H, n) {
-  ctx.save();
-  polyPath(ctx, slot, W, H);
-  ctx.clip();
-  const xs = slot.map(([fx]) => fx * W);
-  const ys = slot.map(([, fy]) => fy * H);
-  const x0 = Math.min(...xs);
-  const x1 = Math.max(...xs);
-  const y0 = Math.min(...ys);
-  const y1 = Math.max(...ys);
-  const grad = ctx.createLinearGradient(x0, y0, x1, y1);
-  grad.addColorStop(0, '#2A3644');
-  grad.addColorStop(1, '#141E28');
-  ctx.fillStyle = grad;
-  ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
-  ctx.strokeStyle = 'rgba(255, 246, 232, 0.35)';
-  ctx.lineWidth = Math.max(2, W * 0.002);
-  ctx.setLineDash([W * 0.012, W * 0.008]);
-  ctx.strokeRect(x0 + W * 0.02, y0 + H * 0.03, (x1 - x0) - W * 0.04, (y1 - y0) - H * 0.06);
-  ctx.setLineDash([]);
-  ctx.fillStyle = 'rgba(255, 246, 232, 0.75)';
-  ctx.font = `600 ${Math.round(Math.min(x1 - x0, y1 - y0) * 0.09)}px Inter, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(`PANEL ${n + 1}`, (x0 + x1) / 2, (y0 + y1) / 2);
-  ctx.restore();
+// A sub-caption never wraps: one line, shrunk to fit, never below half size.
+// Measured in Inter with its 0.08em tracking, which is how it is drawn.
+export function fitSub(ctx, text, maxW, nominal) {
+  const measure = (px) => {
+    ctx.font = `${px}px Inter, sans-serif`;
+    return ctx.measureText(text).width + text.length * px * 0.08;
+  };
+  const w = measure(nominal);
+  const size = w <= maxW ? nominal : Math.max(nominal * 0.5, (nominal * maxW) / w);
+  return { lines: [text], size };
 }
 
-function drawGrade(ctx, grade, strength, W, H) {
-  const s = strength == null ? 0.55 : strength;
-  const g = GRADES[grade] || GRADES.sunset;
-  const wash = ctx.createLinearGradient(0, 0, 0, H);
-  wash.addColorStop(0, g.washTop);
-  wash.addColorStop(1, g.washBottom);
-  ctx.save();
-  ctx.globalAlpha = s / 0.55;
-  ctx.fillStyle = wash;
-  ctx.fillRect(0, 0, W, H);
-  const [gx, gy] = g.glowAt;
-  const glow = ctx.createRadialGradient(gx * W, gy * H, 0, gx * W, gy * H, W * 0.42);
-  glow.addColorStop(0, g.glow);
-  glow.addColorStop(1, 'rgba(255, 217, 77, 0)');
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, H);
-  const vig = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.42, W / 2, H / 2, Math.max(W, H) * 0.72);
-  vig.addColorStop(0, 'rgba(14, 26, 36, 0)');
-  vig.addColorStop(1, `rgba(14, 26, 36, ${g.vignette * (s / 0.55)})`);
-  ctx.fillStyle = vig;
-  ctx.fillRect(0, 0, W, H);
-  ctx.restore();
-}
-
-function wrapCaption(ctx, text, maxW) {
-  const words = String(text || '').toUpperCase().split(/\s+/).filter(Boolean);
-  const lines = [];
-  let line = '';
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word;
-    if (ctx.measureText(next).width > maxW && line) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = next;
+// Right edge x of a polygon at height y (linear interpolation on its edges).
+function edgeAt(points, y) {
+  let right = -Infinity;
+  for (let i = 0; i < points.length; i++) {
+    const [x1, y1] = points[i];
+    const [x2, y2] = points[(i + 1) % points.length];
+    if ((y1 <= y && y2 > y) || (y2 <= y && y1 > y)) {
+      const t = (y - y1) / (y2 - y1);
+      right = Math.max(right, x1 + t * (x2 - x1));
     }
   }
-  if (line) lines.push(line);
-  return lines.length ? lines : [''];
+  return right === -Infinity ? 1 : right;
 }
 
-function drawSunMark(ctx, cx, cy, r) {
+// Draw one photo into a polygon: cover-fit around its focal point, with
+// zoom and drag-pan offsets. Without a photo, paint a warm sunset gradient
+// so the canvas is never blank (the empty state still shows a cover).
+function drawPanel(ctx, W, H, poly, panel) {
   ctx.save();
-  // Dashed orbit ring: the mark reads as a designed badge, not a sticker (W1).
-  ctx.strokeStyle = SUN;
-  ctx.lineWidth = Math.max(2, r * 0.12);
-  ctx.setLineDash([r * 0.34, r * 0.22]);
   ctx.beginPath();
-  ctx.arc(cx, cy, r * 1.5, 0, Math.PI * 2);
+  for (const [x, y] of poly) ctx.lineTo(x * W, y * H);
+  ctx.closePath();
+  ctx.clip();
+  const xs = poly.map(([x]) => x * W);
+  const ys = poly.map(([, y]) => y * H);
+  const bx = Math.min(...xs);
+  const by = Math.min(...ys);
+  const bw = Math.max(...xs) - bx;
+  const bh = Math.max(...ys) - by;
+  const img = panel.img;
+  if (img && img.naturalWidth > 0) {
+    const zoom = panel.zoom || 1;
+    const s = Math.max(bw / img.naturalWidth, bh / img.naturalHeight) * zoom;
+    const dw = img.naturalWidth * s;
+    const dh = img.naturalHeight * s;
+    const fx = panel.focalX ?? 0.5;
+    const fy = panel.focalY ?? 0.5;
+    const dxRaw = bx + bw / 2 - fx * dw + (panel.dx || 0) * bw;
+    const dyRaw = by + bh / 2 - fy * dh + (panel.dy || 0) * bh;
+    // Clamp so the photo always covers the whole panel box: a focal point
+    // near an edge must never leave a paper strip on the far side.
+    const dx = Math.max(bx + bw - dw, Math.min(bx, dxRaw));
+    const dy = Math.max(by + bh - dh, Math.min(by, dyRaw));
+    ctx.drawImage(img, dx, dy, dw, dh);
+  } else {
+    const g = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
+    g.addColorStop(0, '#FF6B35');
+    g.addColorStop(0.55, '#FF5A8A');
+    g.addColorStop(1, '#2E7FB8');
+    ctx.fillStyle = g;
+    ctx.fillRect(bx, by, bw, bh);
+  }
+  ctx.restore();
+  // Paper divider around the panel so the diagonal cuts read as print.
+  ctx.save();
+  ctx.beginPath();
+  for (const [x, y] of poly) ctx.lineTo(x * W, y * H);
+  ctx.closePath();
+  ctx.strokeStyle = PAPER;
+  ctx.lineWidth = Math.max(2, 0.006 * W);
   ctx.stroke();
-  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+// Sun badge: yellow disc, dashed ink ring, four plus ticks at the cardinals.
+function drawBadge(ctx, cx, cy, r) {
+  ctx.save();
   ctx.fillStyle = SUN;
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = Math.max(2, r * 0.14);
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1.5, r * 0.12);
+  ctx.setLineDash([r * 0.45, r * 0.3]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 1.45, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.strokeStyle = SUN;
-  ctx.lineWidth = Math.max(2, r * 0.16);
+  ctx.setLineDash([]);
+  ctx.lineWidth = Math.max(2, r * 0.22);
   ctx.lineCap = 'round';
-  for (let i = 0; i < 8; i += 1) {
-    const a = (i / 8) * Math.PI * 2;
-    const x1 = cx + Math.cos(a) * r * 1.35;
-    const y1 = cy + Math.sin(a) * r * 1.35;
-    const x2 = cx + Math.cos(a) * r * 1.75;
-    const y2 = cy + Math.sin(a) * r * 1.75;
+  for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+    const ox = cx + dx * r * 1.45;
+    const oy = cy + dy * r * 1.45;
+    const t = r * 0.32;
     ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
+    ctx.moveTo(ox - t, oy);
+    ctx.lineTo(ox + t, oy);
+    ctx.moveTo(ox, oy - t);
+    ctx.lineTo(ox, oy + t);
+    ctx.strokeStyle = INK;
     ctx.stroke();
   }
   ctx.restore();
 }
 
-// The hero panel's right edge at a given height fraction: the diagonal
-// slants left as it goes down, so the panel is narrowest at the bottom.
-function slotRightEdgeAtY(slot, yFrac) {
-  let maxX = 0;
-  for (let i = 0; i < slot.length; i += 1) {
-    const [x1, y1] = slot[i];
-    const [x2, y2] = slot[(i + 1) % slot.length];
-    if ((y1 <= yFrac && y2 >= yFrac) || (y2 <= yFrac && y1 >= yFrac)) {
-      if (y1 === y2) maxX = Math.max(maxX, x1, x2);
-      else maxX = Math.max(maxX, x1 + ((yFrac - y1) / (y2 - y1)) * (x2 - x1));
-    }
-  }
-  return maxX;
-}
-
-// Widest the sub-caption may be: the hero panel's width at its baseline
-// (the narrowest point, y 0.95), minus the left margin and a safety gap.
-function subMaxWFor(state, W) {
-  if (state.layout === 'diagonal' || state.layout === 'duo') {
-    const edge = slotRightEdgeAtY(LAYOUTS[state.layout].slots[0], 0.95);
-    return Math.max(W * 0.2, (edge - 0.055 - 0.02) * W);
-  }
-  return W * 0.88;
-}
-
-function drawCaption(ctx, state, W, H) {
-  const caption = (state.caption || '').trim() || 'UNTITLED';
-  const sub = (state.subcaption || '').trim();
-  const pos = state.captionPos || 'bottom';
-  const color = state.captionColor || WHITE;
-  const size0 = Math.round(Math.min(W, H) * (state.captionScale || 0.145));
-  let size = size0;
+// Draw the caption block: pink rule above the glyphs, Anton letters with a
+// hard ink outline and offset shadow, then the tracked sub-caption below.
+// Returns { lines, size, top, bottom } for the probe and the badge layout.
+function drawCaption(ctx, W, H, state, layout) {
+  const size = SIZES[state.size];
+  const nominal = 0.16 * H * state.captionSize * size.capScale;
+  const hero = layout.panels[0];
+  const bottom = state.captionPos === 'top';
+  // Caption box: from the left margin to the hero edge at the caption line.
+  const anchorY = bottom ? 0.12 : 0.88;
+  const heroRight = edgeAt(hero.points, anchorY) * W;
+  const maxW = Math.min(0.88 * W, Math.max(0.3 * W, heroRight - 0.04 * W));
+  const fit = fitCaption(ctx, state.caption.toUpperCase(), maxW, nominal);
+  const lineH = fit.size * 1.02;
+  const blockH = lineH * fit.lines.length;
+  const top = bottom ? 0.07 * H : 0.88 * H - blockH;
+  const baseline0 = top + fit.size * 0.92;
+  // Pink rule above the first glyph top (real ascent + a 0.014H gap),
+  // clear of the letters so the thick ink outline never buries it.
+  ctx.font = `${fit.size}px Anton, sans-serif`;
+  const ascent = ctx.measureText(fit.lines[0]).actualBoundingBoxAscent || fit.size * 0.8;
+  const glyphTop = baseline0 - ascent;
+  const ruleH = Math.max(3, 0.012 * H);
+  const ruleY = glyphTop - 0.014 * H - ruleH;
+  const widest = Math.max(...fit.lines.map((l) => lineWidth(ctx, l, fit.size)));
   ctx.save();
-  ctx.textAlign = 'left';
+  ctx.fillStyle = '#FF5A8A';
+  ctx.fillRect(0.04 * W, ruleY, 0.34 * widest, ruleH);
+  // Hard shadow, then outlined letters.
   ctx.textBaseline = 'alphabetic';
-  ctx.font = `${size}px Anton, 'Arial Narrow', sans-serif`;
-  // Left-hero layouts pin the caption inside the hero panel, so no divider
-  // ever crosses the lettering (W2). Grid and hero span the full width, so
-  // the caption gets a deliberate ink scrim band instead.
-  const heroCap = state.layout === 'diagonal' ? 0.52 : state.layout === 'duo' ? 0.42 : 0.88;
-  const maxW = W * heroCap;
-  let lines = wrapCaption(ctx, caption, maxW);
-  // Shrink-to-fit: keep the widest caption line clear of the diagonal at
-  // its baseline (y 0.9), with a safety gap (WARN 2 — the clearance was
-  // 5–10 px). Shrink first, wrap only below the floor.
-  if (state.layout === 'diagonal' || state.layout === 'duo') {
-    const edge = slotRightEdgeAtY(LAYOUTS[state.layout].slots[0], 0.9);
-    const capW = Math.max(W * 0.2, (edge - 0.055 - 0.02) * W);
-    const floor = Math.round(size0 * 0.6);
-    for (let i = 0; i < 3; i += 1) {
-      ctx.font = `${size}px Anton, 'Arial Narrow', sans-serif`;
-      const widest = Math.max(...lines.map((l) => ctx.measureText(l).width));
-      if (widest <= capW || size <= floor) break;
-      size = Math.max(floor, Math.floor(size * (capW / widest)));
-      lines = wrapCaption(ctx, caption, maxW);
-    }
-  }
-  const lineH = size * 1.02;
-  // Sub-caption auto-fit: one line, capped by the hero panel's width at the
-  // sub-caption's baseline — the diagonal slants left as it goes down, so
-  // the panel is narrowest where the sub sits (FAIL 1). Shrink (never wrap
-  // to an orphan) until it fits, down to a floor; wrap only below the floor.
-  // Letter-spacing is measured by hand (raw width + gaps) because canvas
-  // measureText may or may not include it — the first version trusted it
-  // and still produced an orphan "2026" in the portrait preview.
-  const subBaseSize = Math.round(size * 0.26);
-  let subSize = subBaseSize;
-  let subLines = [];
-  if (sub) {
-    const subMaxW = subMaxWFor(state, W);
-    const subText = sub.toUpperCase();
-    const floor = Math.max(10, Math.round(size * 0.1));
-    const measureSub = (px) => {
-      ctx.font = `800 ${px}px Inter, sans-serif`;
-      try { ctx.letterSpacing = '0px'; } catch (e) { /* older canvas */ }
-      const raw = ctx.measureText(subText).width;
-      return raw + Math.max(0, subText.length - 1) * Math.round(px * 0.22);
-    };
-    let fullW = measureSub(subSize);
-    for (let i = 0; i < 4 && fullW > subMaxW && subSize > floor; i += 1) {
-      subSize = Math.max(floor, Math.floor(subSize * (subMaxW / fullW)));
-      fullW = measureSub(subSize);
-    }
-    // Final guard, measured exactly as the wrap step will measure it: the
-    // shrink above can land a few px over the cap (rounding, gap count),
-    // which is exactly how the orphan "2026" survived iteration 7.
-    ctx.font = `800 ${subSize}px Inter, sans-serif`;
-    try { ctx.letterSpacing = `${Math.round(subSize * 0.22)}px`; } catch (e) { /* older canvas */ }
-    let drawnW = ctx.measureText(subText).width;
-    for (let i = 0; i < 3 && drawnW > subMaxW && subSize > floor; i += 1) {
-      subSize = Math.max(floor, subSize - 1);
-      ctx.font = `800 ${subSize}px Inter, sans-serif`;
-      try { ctx.letterSpacing = `${Math.round(subSize * 0.22)}px`; } catch (e) { /* older canvas */ }
-      drawnW = ctx.measureText(subText).width;
-    }
-    subLines = wrapCaption(ctx, sub, subMaxW);
-  }
-  const subLineH = subSize * 1.35;
-  const blockH = lines.length * lineH + (subLines.length ? size * 0.3 + (subLines.length - 1) * subLineH + subSize * 0.55 : 0);
-  const margin = W * 0.055;
-  let top;
-  if (pos === 'top') {
-    top = H * 0.045;
-  } else {
-    top = H - H * 0.05 - blockH;
-  }
-  const ruleY = top - size * 0.18;
-  if (state.layout === 'grid' || state.layout === 'hero') {
-    // Tight strip behind the lettering only — never a full-width band (N1).
-    const pad = H * 0.02;
-    ctx.font = `${size}px Anton, 'Arial Narrow', sans-serif`;
-    const capW = Math.max(...lines.map((l) => ctx.measureText(l).width));
-    ctx.font = `800 ${subSize}px Inter, sans-serif`;
-    try { ctx.letterSpacing = `${Math.round(subSize * 0.22)}px`; } catch (e) { /* older canvas */ }
-    const subW = subLines.length ? Math.max(...subLines.map((l) => ctx.measureText(l).width)) : 0;
-    try { ctx.letterSpacing = '0px'; } catch (e) { /* older canvas */ }
-    const stripW = Math.max(capW, subW);
+  ctx.textAlign = 'left';
+  fit.lines.forEach((line, i) => {
+    const y = baseline0 + i * lineH;
+    ctx.font = `${fit.size}px Anton, sans-serif`;
     ctx.fillStyle = INK;
-    ctx.globalAlpha = 0.82;
-    ctx.fillRect(margin - pad, ruleY - pad, stripW + pad * 2, (top + blockH - ruleY) + pad * 2);
-    ctx.globalAlpha = 1;
-  }
-  ctx.fillStyle = PINK;
-  ctx.fillRect(margin, ruleY, W * 0.16, Math.max(3, size * 0.045));
-  ctx.font = `${size}px Anton, 'Arial Narrow', sans-serif`;
-  ctx.lineJoin = 'round';
-  ctx.miterLimit = 2;
-  lines.forEach((line, i) => {
-    const y = top + (i + 1) * lineH - size * 0.12;
-    ctx.fillStyle = INK;
-    ctx.fillText(line, margin + size * 0.05, y + size * 0.05);
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = size * 0.11;
-    ctx.strokeText(line, margin, y);
-    ctx.fillStyle = color;
-    ctx.fillText(line, margin, y);
-  });
-  if (subLines.length) {
-    ctx.font = `800 ${subSize}px Inter, sans-serif`;
-    try { ctx.letterSpacing = `${Math.round(subSize * 0.22)}px`; } catch (e) { /* older canvas */ }
+    ctx.fillText(line, 0.04 * W + fit.size * 0.045, y + fit.size * 0.045);
+    ctx.lineWidth = Math.max(2, fit.size * 0.13);
     ctx.lineJoin = 'round';
     ctx.strokeStyle = INK;
-    ctx.lineWidth = subSize * 0.28;
-    subLines.forEach((line, i) => {
-      const y = top + lines.length * lineH + size * 0.3 + i * subLineH;
-      ctx.strokeText(line, margin, y);
-      ctx.fillStyle = INK;
-      ctx.fillText(line, margin + subSize * 0.12, y + subSize * 0.12);
-      ctx.fillStyle = SUN;
-      ctx.fillText(line, margin, y);
-    });
-    try { ctx.letterSpacing = '0px'; } catch (e) { /* older canvas */ }
+    ctx.strokeText(line, 0.04 * W, y);
+    ctx.fillStyle = state.captionColor;
+    ctx.fillText(line, 0.04 * W, y);
+  });
+  // Sub-caption: one line, tracked, at 0.94H (bottom) or under the block.
+  const subNominal = nominal * 0.38;
+  const subFit = fitSub(ctx, state.sub.toUpperCase(), maxW, subNominal);
+  const subY = bottom ? top + blockH + subFit.size * 1.9 : 0.94 * H;
+  ctx.font = `${subFit.size}px Inter, sans-serif`;
+  try {
+    ctx.letterSpacing = `${subFit.size * 0.08}px`;
+  } catch (_) {
+    /* older canvas: no letterSpacing, spacing stays natural */
   }
-  // Sun badge, top-left: the top-right corner belongs to the photos (a sign
-  // in portrait, a face in the boulevard panel) — the badge collided there.
-  drawSunMark(ctx, margin + size * 0.22, H * 0.055 + size * 0.2, size * 0.16);
+  ctx.fillStyle = INK;
+  ctx.fillText(state.sub.toUpperCase(), 0.04 * W + 2, subY + 2);
+  ctx.fillStyle = '#FFF6E8';
+  ctx.fillText(state.sub.toUpperCase(), 0.04 * W, subY);
+  try {
+    ctx.letterSpacing = '0px';
+  } catch (_) {}
   ctx.restore();
+  return { lines: fit.lines, size: fit.size, subLines: subFit.lines, top, bottom: top + blockH };
 }
 
 export function renderCover(ctx, W, H, state) {
-  const layout = LAYOUTS[state.layout] || LAYOUTS.diagonal;
-  const photoById = new Map((state.photos || []).map((p) => [p.id, p]));
+  const layout = LAYOUTS[state.layout];
+  const grade = GRADES[state.grade];
+  ctx.save();
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#141E28';
+  ctx.fillStyle = PAPER;
   ctx.fillRect(0, 0, W, H);
-  const grade = GRADES[state.grade] || GRADES.sunset;
-  layout.slots.forEach((slot, i) => {
-    const panel = (state.panels || [])[i] || { photoId: null, zoom: 1, ox: 0, oy: 0 };
-    const photo = panel.photoId ? photoById.get(panel.photoId) : null;
-    if (grade.tint) ctx.filter = grade.tint;
-    if (photo) drawPanelPhoto(ctx, slot, photo, panel, W, H);
-    else drawEmptySlot(ctx, slot, W, H, i);
-    ctx.filter = 'none';
-  });
-  const dividerW = Math.max(4, W * 0.007);
-  ctx.save();
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = dividerW;
-  ctx.lineCap = 'round';
-  (layout.dividers || []).forEach(([a, b]) => {
-    ctx.beginPath();
-    ctx.moveTo(a[0] * W, a[1] * H);
-    ctx.lineTo(b[0] * W, b[1] * H);
-    ctx.stroke();
-  });
-  ctx.strokeStyle = SUN;
-  ctx.lineWidth = Math.max(2, dividerW * 0.28);
-  (layout.dividers || []).forEach(([a, b]) => {
-    ctx.beginPath();
-    ctx.moveTo(a[0] * W, a[1] * H);
-    ctx.lineTo(b[0] * W, b[1] * H);
-    ctx.stroke();
-  });
+  for (let i = 0; i < layout.panels.length; i++) {
+    drawPanel(ctx, W, H, layout.panels[i].points, state.panels[i] || {});
+  }
+  // Grade washes over the photos, under the type.
+  for (const wash of grade.washes) {
+    ctx.save();
+    ctx.globalCompositeOperation = wash.blend;
+    ctx.globalAlpha = wash.alpha;
+    ctx.fillStyle = wash.color;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+  const debug = drawCaption(ctx, W, H, state, layout);
+  // Sun badge: top-left by default; top-right when the caption is on top,
+  // so it never sits on the first letter.
+  const r = 0.012 * W;
+  if (state.captionPos === 'top') drawBadge(ctx, 0.93 * W, 0.07 * H, r);
+  else drawBadge(ctx, 0.06 * W, 0.07 * H, r);
+  // Ink frame after the washes so it stays navy dark, hairline on top.
+  const fw = 0.01 * W;
+  ctx.fillStyle = INK;
+  ctx.fillRect(0, 0, W, fw);
+  ctx.fillRect(0, H - fw, W, fw);
+  ctx.fillRect(0, 0, fw, H);
+  ctx.fillRect(W - fw, 0, fw, H);
+  ctx.strokeStyle = PAPER;
+  ctx.globalAlpha = 0.6;
+  ctx.lineWidth = Math.max(1, 0.002 * W);
+  ctx.strokeRect(fw + 2, fw + 2, W - 2 * fw - 4, H - 2 * fw - 4);
   ctx.restore();
-  drawGrade(ctx, state.grade, state.gradeStrength, W, H);
-  const frameW = Math.max(6, W * 0.011);
-  ctx.save();
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = frameW;
-  ctx.strokeRect(frameW / 2, frameW / 2, W - frameW, H - frameW);
-  ctx.restore();
-  drawCaption(ctx, state, W, H);
-}
-
-export function coverAspect(sizeId) {
-  const sizes = { square: 1, portrait: 1080 / 1350, landscape: 1920 / 1080 };
-  return sizes[sizeId] || sizes.landscape;
+  return debug;
 }

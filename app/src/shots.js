@@ -1,72 +1,59 @@
-// Sunset Press — deterministic staging for screenshots. `?shot=` loads a
-// fixed demo state (sample photos, a layout, a grade, a caption) so every
-// screenshot is reproducible. Cover shots hide the editor chrome and show
-// only the poster itself.
-import { defaultPanels } from './presets.js';
+// Sunset Press — deterministic staging for the dossier screenshots.
+// ?shot=cover|editor|portrait|square drives the editor through its own
+// DOM controls (the same clicks a user makes), then flags __shotReady.
+// Plain shots hide the chrome so the frame is just the cover art.
 
-const COVER_SHOTS = {
-  landscape: {
-    size: 'landscape',
-    layout: 'diagonal',
-    grade: 'sunset',
-    caption: 'SUNSET DRIVE',
-    subcaption: 'OCEAN DRIVE · EST. 2026',
-  },
-  portrait: {
-    size: 'portrait',
-    layout: 'diagonal',
-    grade: 'neon',
-    caption: 'NEON NIGHTS',
-    subcaption: 'OCEAN DRIVE',
-    // Hero gets the car (no edge text to slice); boulevard top-right keeps
-    // the sun badge over sky, street goes bottom-right (N2, W7).
-    photos: ['sample-night', 'sample-boulevard', 'sample-street'],
-  },
-  square: {
-    size: 'square',
-    layout: 'diagonal',
-    grade: 'dusk',
-    caption: 'PALM DUSK',
-    subcaption: 'LAST LIGHT · 2026',
-  },
-};
+import { SHOTS, SAMPLES } from './presets.js';
 
-export async function stageShot(state, api) {
-  const params = new URLSearchParams(location.search);
-  const shot = params.get('shot');
-  if (!shot) return;
-  await api.loadSamples();
-  const preset = COVER_SHOTS[params.get('size') || 'landscape'] || COVER_SHOTS.landscape;
-  if (shot === 'cover') {
-    state.size = preset.size;
-    state.layout = preset.layout;
-    state.grade = preset.grade;
-    state.caption = preset.caption;
-    state.subcaption = preset.subcaption;
-    state.captionPos = 'bottom';
-    state.panels = defaultPanels(preset.layout, true);
-    if (preset.photos) {
-      preset.photos.forEach((id, i) => { if (state.panels[i]) state.panels[i].photoId = id; });
+const params = new URLSearchParams(location.search);
+const shot = params.get('shot');
+if (shot && SHOTS[shot]) {
+  const cfg = SHOTS[shot];
+  const click = (sel) => document.querySelector(sel)?.click();
+  const setText = (sel, value) => {
+    const el = document.querySelector(sel);
+    if (!el) return;
+    el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  // Size first (it keeps the caption), then grade, then text.
+  click(`[data-size="${cfg.size}"]`);
+  click(`[data-grade="${GRADES_INDEX(cfg.grade)}"]`);
+  setText('#caption-input', cfg.caption);
+  setText('#sub-input', cfg.sub);
+
+  // Fill every panel with a sample photo: pick panel, pick sample.
+  const panelBtns = () => [...document.querySelectorAll('#panel-picker .chip')];
+  const sampleBtns = () => [...document.querySelectorAll('#sample-picker [data-sample]')];
+  const order = SAMPLES.map((s) => s.id);
+  panelBtns().forEach((btn, i) => {
+    btn.click();
+    sampleBtns().find((b) => b.dataset.sample === order[i % order.length])?.click();
+  });
+  panelBtns()[0]?.click();
+
+  if (shot !== 'editor') {
+    document.body.classList.add('shot-plain');
+  }
+
+  // Wait for fonts and sample images, then one last draw and the flag.
+  const ready = async () => {
+    try {
+      await document.fonts.ready;
+    } catch (_) {}
+    for (let i = 0; i < 40; i++) {
+      const pending = [...document.images].some((img) => !img.complete);
+      if (!pending && window.__coverDebug?.ready) break;
+      await new Promise((r) => setTimeout(r, 100));
     }
-    document.body.classList.add('cover-only');
-    const input = document.querySelector('#caption-input');
-    if (input) input.value = state.caption;
-    const sub = document.querySelector('#subcaption-input');
-    if (sub) sub.value = state.subcaption;
-    api.refreshChrome();
-    api.queueRender();
-    requestAnimationFrame(() => { window.__shotReady = true; });
-    return;
-  }
-  if (shot === 'editor') {
-    state.size = 'landscape';
-    state.layout = 'diagonal';
-    state.grade = 'sunset';
-    state.caption = 'SUNSET DRIVE';
-    state.subcaption = 'OCEAN DRIVE · EST. 2026';
-    state.panels = defaultPanels('diagonal', true);
-    api.refreshChrome();
-    api.queueRender();
-    requestAnimationFrame(() => { window.__shotReady = true; });
-  }
+    // One more render pass now that every image is in.
+    document.querySelector('#cover-canvas')?.dispatchEvent(new Event('pointerup'));
+    window.__shotReady = true;
+  };
+  ready();
+}
+
+function GRADES_INDEX(i) {
+  return i;
 }
