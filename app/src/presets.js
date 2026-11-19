@@ -1,128 +1,97 @@
-// Sunset Press — layout, grade and size presets for the cover maker.
-// Every layout is a list of panel slots; each slot is a polygon in fractions
-// of the cover (0..1), so one layout fits every export size.
+// Sunset Press — shared presets: sizes, samples, layouts, grades, colours.
+// Everything the renderer and the editor agree on lives here, in one place,
+// so a layout or grade change only ever needs a single edit.
 
+export const INK = '#0E1A24';
+export const PAPER = '#FFF6E8';
+export const SUN = '#FFD94D';
+export const PINK = '#FF5A8A';
+export const ORANGE = '#FF6B35';
+
+// Post sizes the bounty asks for. Label is what the editor shows.
 export const SIZES = {
-  square: { label: 'Square · 1080 × 1080', w: 1080, h: 1080, short: '1080×1080' },
-  portrait: { label: 'Portrait · 1080 × 1350', w: 1080, h: 1350, short: '1080×1350' },
-  landscape: { label: 'Landscape · 1920 × 1080', w: 1920, h: 1080, short: '1920×1080' },
+  wide: { w: 1920, h: 1080, label: '1920 × 1080' },
+  portrait: { w: 1080, h: 1350, label: '1080 × 1350' },
+  square: { w: 1080, h: 1080, label: '1080 × 1080' },
 };
 
+// Per-size defaults: the caption, sub-caption, grade and caption scale the
+// dossier covers are staged with. capScale exists because one nominal size
+// cannot fit all three aspect ratios: portrait needs a smaller nominal so
+// "NEON RUN" still fits on one line, square needs the full size so
+// "PALM DUSK" wraps into two big lines.
+export const SIZE_DEFAULTS = {
+  wide: { caption: 'SUNSET DRIVE', sub: 'OCEAN DRIVE • EST. 2026', grade: 0, capScale: 0.91 },
+  portrait: { caption: 'NEON NIGHTS', sub: 'VICE CITY • EST. 2026', grade: 1, capScale: 0.75 },
+  square: { caption: 'PALM DUSK', sub: 'PALMS MOTEL • VACANCY', grade: 0, capScale: 1.0 },
+};
+
+// The four sample photos shipped with the app (AI-made, free to use).
+// focal is the point of the photo the panel centres on by default.
+export const SAMPLES = [
+  { id: 'boulevard', name: 'Boulevard', src: 'samples/boulevard.jpg', focal: { x: 0.5, y: 0.35 } },
+  { id: 'nightdrive', name: 'Night Drive', src: 'samples/nightdrive.jpg', focal: { x: 0.5, y: 0.5 } },
+  { id: 'pier', name: 'Pier', src: 'samples/pier.jpg', focal: { x: 0.5, y: 0.45 } },
+  { id: 'street', name: 'Street', src: 'samples/street.jpg', focal: { x: 0.5, y: 0.5 } },
+];
+
+// Diagonal multi-panel layouts. Every polygon is a list of [x, y] fractions
+// of the canvas; panel 0 is always the hero and always carries the caption.
+// The shared diagonal edge leans left as it runs down (top x larger than
+// bottom x), which is what makes the poster read as one slanted composition.
 export const LAYOUTS = {
-  diagonal: {
-    label: 'Diagonal 3',
-    hint: 'Hero left, two stacked right',
-    slots: [
-      [[0, 0], [0.64, 0], [0.54, 1], [0, 1]],
-      [[0.64, 0], [1, 0], [1, 0.5], [0.59, 0.5]],
-      [[0.59, 0.5], [1, 0.5], [1, 1], [0.54, 1]],
-    ],
-    dividers: [
-      [[0.64, 0], [0.54, 1]],
-      [[0.59, 0.5], [1, 0.5]],
-    ],
-  },
-  grid: {
-    label: 'Grid 4',
-    hint: 'Four panels, diagonal split',
-    slots: [
-      [[0, 0], [0.58, 0], [0.48, 0.5], [0, 0.5]],
-      [[0.58, 0], [1, 0], [1, 0.5], [0.48, 0.5]],
-      [[0, 0.5], [0.48, 0.5], [0.42, 1], [0, 1]],
-      [[0.48, 0.5], [1, 0.5], [1, 1], [0.42, 1]],
-    ],
-    dividers: [
-      [[0.58, 0], [0.48, 0.5]],
-      [[0.48, 0.5], [0.42, 1]],
-      [[0, 0.5], [1, 0.5]],
-    ],
-  },
-  hero: {
-    label: 'Hero 3',
-    hint: 'One wide hero, two below',
-    slots: [
-      [[0, 0], [1, 0], [1, 0.5], [0, 0.7]],
-      [[0, 0.7], [0.5, 0.6], [0.5, 1], [0, 1]],
-      [[0.5, 0.6], [1, 0.5], [1, 1], [0.5, 1]],
-    ],
-    dividers: [
-      [[0, 0.7], [1, 0.5]],
-      [[0.5, 0.6], [0.5, 1]],
+  trio: {
+    name: 'Sunset Trio',
+    panels: [
+      [[0, 0], [0.61, 0], [0.56, 1], [0, 1]],
+      [[0.61, 0], [1, 0], [1, 0.5], [0.585, 0.5]],
+      [[0.585, 0.5], [1, 0.5], [1, 1], [0.56, 1]],
     ],
   },
   duo: {
-    label: 'Duo 2',
-    hint: 'Two panels, diagonal cut',
-    slots: [
-      [[0, 0], [0.58, 0], [0.42, 1], [0, 1]],
-      [[0.58, 0], [1, 0], [1, 1], [0.42, 1]],
+    name: 'Split Duo',
+    panels: [
+      [[0, 0], [0.64, 0], [0.58, 1], [0, 1]],
+      [[0.64, 0], [1, 0], [1, 1], [0.58, 1]],
     ],
-    dividers: [
-      [[0.58, 0], [0.42, 1]],
+  },
+  strip: {
+    name: 'Hero Strip',
+    panels: [
+      [[0, 0], [1, 0], [1, 0.64], [0, 0.64]],
+      [[0, 0.64], [0.36, 0.64], [0.32, 1], [0, 1]],
+      [[0.36, 0.64], [0.69, 0.64], [0.65, 1], [0.32, 1]],
+      [[0.69, 0.64], [1, 0.64], [1, 1], [0.65, 1]],
+    ],
+  },
+  quad: {
+    name: 'Vice Quad',
+    panels: [
+      [[0, 0], [0.53, 0], [0.49, 0.5], [0, 0.5]],
+      [[0.53, 0], [1, 0], [1, 0.5], [0.49, 0.5]],
+      [[0, 0.5], [0.49, 0.5], [0.45, 1], [0, 1]],
+      [[0.49, 0.5], [1, 0.5], [1, 1], [0.45, 1]],
     ],
   },
 };
 
-export const GRADES = {
-  sunset: {
-    label: 'Sunset Strip',
-    hint: 'Warm orange wash, sun glow',
-    washTop: 'rgba(255, 107, 53, 0)',
-    washBottom: 'rgba(255, 107, 53, 0.24)',
-    glow: 'rgba(255, 217, 77, 0.38)',
-    glowAt: [0.76, 0.16],
-    tint: null,
-    vignette: 0.3,
-  },
-  neon: {
-    label: 'Neon Nights',
-    hint: 'Pink dusk, cyan streets',
-    washTop: 'rgba(255, 90, 138, 0.20)',
-    washBottom: 'rgba(46, 127, 184, 0.22)',
-    glow: 'rgba(255, 90, 138, 0.30)',
-    glowAt: [0.2, 0.14],
-    tint: null,
-    vignette: 0.34,
-  },
-  noir: {
-    label: 'Vice Noir',
-    hint: 'Desaturated, hard contrast',
-    washTop: 'rgba(14, 26, 36, 0.10)',
-    washBottom: 'rgba(14, 26, 36, 0.30)',
-    glow: 'rgba(255, 217, 77, 0.12)',
-    glowAt: [0.5, 0.5],
-    tint: 'grayscale(0.85) contrast(1.14)',
-    vignette: 0.42,
-  },
-  dusk: {
-    label: 'Palm Dusk',
-    hint: 'Pink to amber evening',
-    washTop: 'rgba(255, 90, 138, 0.16)',
-    washBottom: 'rgba(255, 140, 40, 0.26)',
-    glow: 'rgba(255, 217, 77, 0.26)',
-    glowAt: [0.5, 0.08],
-    tint: null,
-    vignette: 0.3,
-  },
-};
-
-export const SAMPLES = [
-  { id: 'sample-street', name: 'Palms Motel', src: 'samples/street.jpg', fy: 0.1, fx: 0.5, thumbPos: 'center' },
-  { id: 'sample-night', name: 'Night Drive', src: 'samples/nightdrive.jpg', fy: 0.5, fx: 0.5, thumbPos: 'center' },
-  { id: 'sample-boulevard', name: 'Boulevard', src: 'samples/boulevard.jpg', fy: 0.05, fx: 0.5, thumbPos: 'top' },
-  { id: 'sample-pier', name: 'Pier', src: 'samples/pier.jpg', fy: 0.3, fx: 0.5, thumbPos: 'center 30%' },
+// Five colour grades. Each is two full-canvas washes applied after the
+// photos: a screen wash that lifts the brights, then a soft-light wash
+// that tints the mids. Neon is the loudest (pink screen 0.30); Sunset is
+// the warm default for the landscape and square covers.
+export const GRADES = [
+  { name: 'Sunset', dot: '#FF6B35', washes: [['screen', 'rgba(255,122,40,0.16)'], ['soft-light', 'rgba(255,90,138,0.10)']] },
+  { name: 'Neon', dot: '#FF5A8A', washes: [['screen', 'rgba(255,90,138,0.30)'], ['soft-light', 'rgba(46,127,184,0.16)']] },
+  { name: 'Dusk', dot: '#7A54BE', washes: [['screen', 'rgba(122,84,190,0.22)'], ['soft-light', 'rgba(255,140,60,0.10)']] },
+  { name: 'Teal', dot: '#1F8A7A', washes: [['screen', 'rgba(31,138,122,0.20)'], ['soft-light', 'rgba(46,127,184,0.12)']] },
+  { name: 'Noir', dot: '#141E28', washes: [['overlay', 'rgba(16,20,28,0.22)'], ['screen', 'rgba(255,255,255,0.06)']] },
 ];
 
-export const DEFAULT_CAPTION = 'SUNSET DRIVE';
-export const DEFAULT_SUBCAPTION = 'OCEAN DRIVE · EST. 2026';
-
-export function defaultPanels(layoutId, fill = false) {
-  const n = LAYOUTS[layoutId].slots.length;
-  const photos = ['sample-street', 'sample-night', 'sample-boulevard', 'sample-pier'];
-  return Array.from({ length: n }, (_, i) => ({
-    photoId: fill ? photos[i % photos.length] : null,
-    zoom: 1.12,
-    ox: 0,
-    oy: 0,
-  }));
-}
+// Caption ink choices in the Teks tab. Paper is the default.
+export const CAPTION_COLORS = [
+  { name: 'Paper', value: '#FFF6E8' },
+  { name: 'White', value: '#FFFFFF' },
+  { name: 'Sun', value: '#FFD94D' },
+  { name: 'Pink', value: '#FF5A8A' },
+  { name: 'Ocean', value: '#7FC4E8' },
+];
