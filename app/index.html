@@ -3,143 +3,158 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sunset Press — Cover Maker</title>
-<link rel="stylesheet" href="style.css">
+<title>Sunset Press — GTA-style cover art maker</title>
+<link rel="stylesheet" href="./style.css">
 </head>
 <body>
 <header class="topbar">
   <div class="brand">
-    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="8" fill="#FFD94D" stroke="#0E1A24" stroke-width="2.5"/><g stroke="#FFD94D" stroke-width="2.5" stroke-linecap="round"><line x1="16" y1="1" x2="16" y2="5"/><line x1="16" y1="27" x2="16" y2="31"/><line x1="1" y1="16" x2="5" y2="16"/><line x1="27" y1="16" x2="31" y2="16"/><line x1="5.4" y1="5.4" x2="8.2" y2="8.2"/><line x1="23.8" y1="23.8" x2="26.6" y2="26.6"/><line x1="26.6" y1="5.4" x2="23.8" y2="8.2"/><line x1="8.2" y1="23.8" x2="5.4" y2="26.6"/></g></svg>
+    <svg class="brand-sun" viewBox="0 0 48 48" aria-hidden="true">
+      <circle cx="24" cy="24" r="10" fill="#FFD94D"></circle>
+      <g stroke="#FFD94D" stroke-width="3" stroke-linecap="round">
+        <line x1="24" y1="4" x2="24" y2="10"></line>
+        <line x1="24" y1="38" x2="24" y2="44"></line>
+        <line x1="4" y1="24" x2="10" y2="24"></line>
+        <line x1="38" y1="24" x2="44" y2="24"></line>
+        <line x1="10" y1="10" x2="14" y2="14"></line>
+        <line x1="34" y1="34" x2="38" y2="38"></line>
+        <line x1="38" y1="10" x2="34" y2="14"></line>
+        <line x1="14" y1="34" x2="10" y2="38"></line>
+      </g>
+    </svg>
     <div class="brand-text">
-      <strong>Sunset Press</strong>
-      <span>Cover Maker</span>
+      <span class="brand-name">Sunset Press</span>
+      <span class="brand-sub">Vice-style cover art from your photos</span>
     </div>
   </div>
-  <div class="size-switch" role="group" aria-label="Cover size">
-    <button type="button" data-size="square" aria-pressed="false">Square</button>
-    <button type="button" data-size="portrait" aria-pressed="false">Portrait</button>
-    <button type="button" data-size="landscape" aria-pressed="true">Landscape</button>
+  <div class="top-actions">
+    <span id="size-label" class="size-label">1920 × 1080</span>
+    <button id="btn-export" class="export-btn" type="button">Export PNG</button>
   </div>
-  <button type="button" id="btn-export" class="btn-export">Export PNG</button>
 </header>
 
-<main class="editor">
-  <section class="photos" aria-label="Photos">
-    <h2>Photos</h2>
-    <label class="upload-btn" for="file-input">+ Add your photos</label>
-    <input type="file" id="file-input" accept="image/*" multiple hidden>
-    <p class="hint">Your photos stay on your machine — nothing is uploaded.</p>
-    <h3>Samples</h3>
-    <div class="sample-grid" id="sample-grid"></div>
-    <p class="hint">Samples are free to use — swap in your own photos any time.</p>
-    <h3>Your photos</h3>
-    <div class="thumb-grid" id="thumb-grid"></div>
-    <p class="hint" id="thumb-empty">No photos yet — add yours or tap a sample.</p>
-    <div class="how-it-works">
-      <h3>How it works</h3>
-      <ol>
-        <li>Pick a size up top.</li>
-        <li>Fill the panels with your photos.</li>
-        <li>Letter the caption — then Export PNG.</li>
-      </ol>
-    </div>
-  </section>
+<main class="workspace">
+  <aside class="rail" aria-label="How it works">
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li><strong>1 · Add photos</strong><span>Upload your own or tap a sample. Each panel takes its own photo.</span></li>
+      <li><strong>2 · Frame it</strong><span>Drag to pan, scroll to zoom, double-click to set the focal point.</span></li>
+      <li><strong>3 · Type &amp; export</strong><span>Write the caption, pick a grade, export a PNG to share.</span></li>
+    </ol>
+    <p class="rail-note">Everything runs on your machine. Photos are never uploaded.</p>
+  </aside>
 
-  <section class="stage" aria-label="Cover preview">
-    <div class="stage-head">
-      <span id="size-label">1920 × 1080</span>
-      <span id="layout-label">Diagonal 3</span>
-    </div>
-    <div class="canvas-wrap" id="canvas-wrap">
-      <canvas id="cover-canvas" width="1920" height="1080"></canvas>
-      <div class="empty-state" id="empty-state">
-        <strong>No photos yet</strong>
-        <p>Load a sample below, or add your own photos to fill the panels.</p>
-        <button type="button" id="btn-load-samples">Load the 4 samples</button>
+  <section class="stage">
+    <div class="canvas-wrap">
+      <canvas id="cover-canvas" width="1280" height="720"></canvas>
+      <div id="empty-state" class="empty-state">
+        <p class="empty-title">Your cover starts here</p>
+        <p class="empty-text">Pick a sample photo or add your own to fill the panels.</p>
       </div>
     </div>
-    <p class="stage-hint">Click a panel to select it · drag to move the photo · scroll to zoom</p>
+    <p id="export-status" class="export-status" role="status"></p>
   </section>
 
-  <section class="controls" aria-label="Controls">
-    <div class="tabs" role="tablist" aria-label="Control sections">
-      <button type="button" role="tab" data-tab="photo" aria-selected="true">Photo</button>
-      <button type="button" role="tab" data-tab="panels" aria-selected="false">Panels</button>
-      <button type="button" role="tab" data-tab="text" aria-selected="false">Caption</button>
-      <button type="button" role="tab" data-tab="grade" aria-selected="false">Grade</button>
-    </div>
+  <aside class="panel">
+    <nav class="tabs" aria-label="Editor tabs">
+      <button data-tab="foto" class="tab active" type="button">Foto</button>
+      <button data-tab="panel" class="tab" type="button">Panel</button>
+      <button data-tab="teks" class="tab" type="button">Teks</button>
+      <button data-tab="grade" class="tab" type="button">Grade</button>
+    </nav>
 
-    <div class="tab-page" data-page="photo">
-      <h3>Selected panel</h3>
-      <p class="panel-name" id="panel-name">Panel 1</p>
-      <label class="field">Photo in this panel
-        <select id="panel-photo"></select>
-      </label>
-      <label class="field">Zoom
-        <input type="range" id="panel-zoom" min="1" max="2.5" step="0.01" value="1.12">
-      </label>
-      <div class="row">
-        <button type="button" id="btn-fit" class="btn-ghost">Fit frame</button>
-        <button type="button" id="btn-clear-panel" class="btn-ghost">Empty panel</button>
+    <section data-pane="foto" class="pane active">
+      <button class="upload-btn" type="button">+ Add your photos</button>
+      <input id="file-input" type="file" accept="image/*" multiple hidden>
+      <h3>Sample photos</h3>
+      <div id="sample-grid" class="sample-grid">
+        <button data-sample="boulevard" class="sample" type="button"><img src="./samples/boulevard.jpg" alt="Boulevard sample photo"><span>Boulevard</span></button>
+        <button data-sample="nightdrive" class="sample" type="button"><img src="./samples/nightdrive.jpg" alt="Night Drive sample photo"><span>Night Drive</span></button>
+        <button data-sample="pier" class="sample" type="button"><img src="./samples/pier.jpg" alt="Pier sample photo"><span>Pier</span></button>
+        <button data-sample="street" class="sample" type="button"><img src="./samples/street.jpg" alt="Street sample photo"><span>Street</span></button>
       </div>
-      <p class="hint">Drag on the cover to move the photo. Wheel zooms the selected panel.</p>
-    </div>
-
-    <div class="tab-page" data-page="panels" hidden>
+      <h3>Post size</h3>
+      <div class="btn-row size-row">
+        <button data-size="square" class="chip" type="button">Square · 1080²</button>
+        <button data-size="portrait" class="chip" type="button">Portrait · 1080×1350</button>
+        <button data-size="landscape" class="chip active" type="button">Wide · 1920×1080</button>
+      </div>
       <h3>Layout</h3>
-      <div class="layout-grid" id="layout-grid"></div>
-    </div>
+      <div class="btn-row layout-row">
+        <button data-layout="trio" class="chip active" type="button">Sunset Trio</button>
+        <button data-layout="duo" class="chip" type="button">Split Duo</button>
+        <button data-layout="strip" class="chip" type="button">Hero Strip</button>
+        <button data-layout="quad" class="chip" type="button">Vice Quad</button>
+      </div>
+    </section>
 
-    <div class="tab-page" data-page="text" hidden>
-      <h3>Caption</h3>
-      <label class="field">Main caption
-        <input type="text" id="caption-input" value="SUNSET DRIVE" maxlength="48">
+    <section data-pane="panel" class="pane">
+      <h3 id="panel-name">Panel 1 — Trio</h3>
+      <div class="btn-row">
+        <button id="panel-prev" class="chip" type="button">‹ Prev panel</button>
+        <button id="panel-next" class="chip" type="button">Next panel ›</button>
+      </div>
+      <label class="field">Photo
+        <select id="panel-sample">
+          <option value="boulevard">Boulevard</option>
+          <option value="nightdrive">Night Drive</option>
+          <option value="pier">Pier</option>
+          <option value="street">Street</option>
+        </select>
       </label>
-      <p class="hint">Live preview: <span id="caption-preview">SUNSET DRIVE</span></p>
+      <label class="field">Zoom — <span id="panel-zoom-val">100%</span>
+        <input id="panel-zoom" type="range" min="1" max="3" step="0.05" value="1">
+      </label>
+      <p class="hint">Drag the photo on the canvas to reposition it. Scroll over the canvas to zoom.</p>
+    </section>
+
+    <section data-pane="teks" class="pane">
+      <h3>Main caption</h3>
+      <input id="caption-input" type="text" value="SUNSET DRIVE" maxlength="40" aria-label="Main caption">
+      <p class="preview-line">Live preview: <span id="caption-preview">SUNSET DRIVE</span></p>
       <label class="field">Sub-caption
-        <input type="text" id="subcaption-input" value="OCEAN DRIVE · EST. 2026" maxlength="64">
+        <input id="sub-input" type="text" value="OCEAN DRIVE • EST. 2026" maxlength="48" aria-label="Sub-caption">
       </label>
-      <fieldset class="field">
-        <legend>Caption colour</legend>
-        <div class="swatches" id="caption-swatches"></div>
-      </fieldset>
-      <label class="field">Caption size
-        <input type="range" id="caption-size" min="0.09" max="0.2" step="0.005" value="0.145">
+      <h3>Caption colour</h3>
+      <div class="swatches">
+        <button data-color="#FFF6E8" class="swatch selected" type="button" style="background:#FFF6E8" aria-label="Paper"></button>
+        <button data-color="#FFFFFF" class="swatch" type="button" style="background:#FFFFFF" aria-label="White"></button>
+        <button data-color="#FFD94D" class="swatch" type="button" style="background:#FFD94D" aria-label="Sun yellow"></button>
+        <button data-color="#FF5A8A" class="swatch" type="button" style="background:#FF5A8A" aria-label="Neon pink"></button>
+        <button data-color="#8FD8FF" class="swatch" type="button" style="background:#8FD8FF" aria-label="Sky blue"></button>
+      </div>
+      <label class="field">Caption size — <span id="caption-size-val">110%</span>
+        <input id="caption-size" type="range" min="0.7" max="1.3" step="0.05" value="1.1">
       </label>
-      <fieldset class="field">
-        <legend>Caption position</legend>
-        <div class="row">
-          <button type="button" data-pos="bottom" class="btn-ghost pos-btn" aria-pressed="true">Bottom</button>
-          <button type="button" data-pos="top" class="btn-ghost pos-btn" aria-pressed="false">Top</button>
-        </div>
-      </fieldset>
-    </div>
-
-    <div class="tab-page" data-page="grade" hidden>
-      <h3>Colour grade</h3>
-      <div class="grade-grid" id="grade-grid"></div>
-      <label class="field">Grade strength
-        <input type="range" id="grade-strength" min="0" max="1" step="0.05" value="0.55">
-      </label>
-      <p class="hint">The grade is baked into the exported PNG.</p>
-    </div>
-    <div class="pro-tips">
+      <h3>Position</h3>
+      <div class="btn-row">
+        <button data-pos="bottom" class="chip active" type="button">Bottom</button>
+        <button data-pos="top" class="chip" type="button">Top</button>
+      </div>
       <h3>Pro tips</h3>
-      <ul>
-        <li>Drag a photo on the cover to reposition it.</li>
-        <li>Scroll over a panel to zoom.</li>
-        <li>Short captions stay on one line — try two words.</li>
+      <ul class="tips">
+        <li>Short captions hit hardest — two words is plenty.</li>
+        <li>Keep the sub-caption to one line; it shrinks to fit.</li>
+        <li>Drag a photo to put the face in the hero panel.</li>
       </ul>
-    </div>
-    <p class="panel-tip"><strong>Next:</strong> pick a layout, fill the panels, letter the caption — then Export PNG.</p>
-  </section>
+      <button id="btn-next" class="next-btn" type="button">Next: Grade →</button>
+    </section>
+
+    <section data-pane="grade" class="pane">
+      <h3>Colour grade</h3>
+      <div class="grade-list">
+        <button data-grade="0" class="grade-btn active" type="button">Sunset<span>Warm orange wash</span></button>
+        <button data-grade="1" class="grade-btn" type="button">Neon<span>Pink screen, blue light</span></button>
+        <button data-grade="2" class="grade-btn" type="button">Noir<span>Cool, muted nights</span></button>
+        <button data-grade="3" class="grade-btn" type="button">Palm<span>Teal palms, golden light</span></button>
+        <button data-grade="4" class="grade-btn" type="button">Vice<span>Magenta nights</span></button>
+      </div>
+      <p class="hint">The grade is baked into the exported PNG.</p>
+    </section>
+    <p class="panel-foot">Sunset Press · offline · OFL fonts</p>
+  </aside>
 </main>
 
-<footer class="statusbar">
-  <span id="export-status">Ready — pick a size, then Export PNG.</span>
-  <span class="status-right">Offline · photos never leave your machine</span>
-</footer>
-
-<script type="module" src="src/app.js"></script>
+<script type="module" src="./src/app.js"></script>
 </body>
 </html>

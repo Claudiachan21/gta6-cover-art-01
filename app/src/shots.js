@@ -1,72 +1,65 @@
-// Sunset Press — deterministic staging for screenshots. `?shot=` loads a
-// fixed demo state (sample photos, a layout, a grade, a caption) so every
-// screenshot is reproducible. Cover shots hide the editor chrome and show
-// only the poster itself.
-import { defaultPanels } from './presets.js';
+// Sunset Press — deterministic staging for screenshots (?shot=...).
+// cover: the exported cover alone, landscape. editor: the app UI with a
+// photo loaded. portrait / square: the cover alone in those post sizes.
+// In cover-only modes the editor chrome is hidden and the canvas fills the
+// viewport at exactly the viewport size, so the shot is the app's own
+// drawing of the exported cover, never edited or composited.
+import { renderCover } from './render.js';
 
-const COVER_SHOTS = {
-  landscape: {
-    size: 'landscape',
-    layout: 'diagonal',
-    grade: 'sunset',
-    caption: 'SUNSET DRIVE',
-    subcaption: 'OCEAN DRIVE · EST. 2026',
-  },
-  portrait: {
-    size: 'portrait',
-    layout: 'diagonal',
-    grade: 'neon',
-    caption: 'NEON NIGHTS',
-    subcaption: 'OCEAN DRIVE',
-    // Hero gets the car (no edge text to slice); boulevard top-right keeps
-    // the sun badge over sky, street goes bottom-right (N2, W7).
-    photos: ['sample-night', 'sample-boulevard', 'sample-street'],
-  },
-  square: {
-    size: 'square',
-    layout: 'diagonal',
-    grade: 'dusk',
-    caption: 'PALM DUSK',
-    subcaption: 'LAST LIGHT · 2026',
-  },
-};
+function renderShot(state, images, w, h) {
+  const canvas = document.querySelector('#cover-canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const debug = renderCover(canvas.getContext('2d'), w, h, state, images);
+  window.__coverDebug = { ...debug, ready: true, size: state.size, layout: state.layout };
+  document.querySelector('#empty-state').classList.add('hidden');
+}
 
-export async function stageShot(state, api) {
-  const params = new URLSearchParams(location.search);
-  const shot = params.get('shot');
-  if (!shot) return;
-  await api.loadSamples();
-  const preset = COVER_SHOTS[params.get('size') || 'landscape'] || COVER_SHOTS.landscape;
+export async function applyShot(shot, api) {
+  const { state, images, render, applySize, applyLayout, loadSample, showTab } = api;
+  const done = async () => {
+    await document.fonts.ready;
+    window.__shotReady = true;
+  };
   if (shot === 'cover') {
-    state.size = preset.size;
-    state.layout = preset.layout;
-    state.grade = preset.grade;
-    state.caption = preset.caption;
-    state.subcaption = preset.subcaption;
-    state.captionPos = 'bottom';
-    state.panels = defaultPanels(preset.layout, true);
-    if (preset.photos) {
-      preset.photos.forEach((id, i) => { if (state.panels[i]) state.panels[i].photoId = id; });
-    }
-    document.body.classList.add('cover-only');
-    const input = document.querySelector('#caption-input');
-    if (input) input.value = state.caption;
-    const sub = document.querySelector('#subcaption-input');
-    if (sub) sub.value = state.subcaption;
-    api.refreshChrome();
-    api.queueRender();
-    requestAnimationFrame(() => { window.__shotReady = true; });
-    return;
-  }
-  if (shot === 'editor') {
-    state.size = 'landscape';
-    state.layout = 'diagonal';
-    state.grade = 'sunset';
+    document.body.classList.add('shot-cover');
+    applyLayout('trio');
+    applySize('landscape', false);
     state.caption = 'SUNSET DRIVE';
-    state.subcaption = 'OCEAN DRIVE · EST. 2026';
-    state.panels = defaultPanels('diagonal', true);
-    api.refreshChrome();
-    api.queueRender();
-    requestAnimationFrame(() => { window.__shotReady = true; });
+    state.sub = 'OCEAN DRIVE • EST. 2026';
+    state.grade = 0;
+    loadSample('boulevard');
+    renderShot(state, images, 1280, 720);
+    await done();
+  } else if (shot === 'portrait') {
+    document.body.classList.add('shot-cover');
+    applyLayout('trio');
+    applySize('portrait', false);
+    state.caption = 'NEON NIGHTS';
+    state.sub = 'VICE CITY • EST. 2026';
+    state.grade = 1;
+    loadSample('boulevard');
+    renderShot(state, images, 1024, 1280);
+    await done();
+  } else if (shot === 'square') {
+    document.body.classList.add('shot-cover');
+    applyLayout('trio');
+    applySize('square', false);
+    state.caption = 'PALM DUSK';
+    state.sub = 'PALMS MOTEL • VACANCY';
+    state.grade = 0;
+    loadSample('boulevard');
+    renderShot(state, images, 1080, 1080);
+    await done();
+  } else {
+    // editor: the app UI, Foto tab active, Pier sample loaded + selected
+    // into the bottom-right panel — the hero stays Boulevard, as in golden.
+    showTab('foto');
+    applyLayout('trio');
+    applySize('landscape', false);
+    state.activePanel = 2;
+    loadSample('pier');
+    render();
+    await done();
   }
 }

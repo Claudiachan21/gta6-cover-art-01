@@ -1,128 +1,124 @@
-// Sunset Press — layout, grade and size presets for the cover maker.
-// Every layout is a list of panel slots; each slot is a polygon in fractions
-// of the cover (0..1), so one layout fits every export size.
+// Sunset Press — presets: sizes, diagonal layouts, grades, samples, caption colours.
+// All geometry is in fractions of the cover width (W) and height (H).
+// Trio slant 0.08W (hero top-right 0.60W -> bottom-right 0.52W) per loop-history-v4
+// W1 fix, verified against the approved v3 renders (design/shots-v3-iter3/).
+
+export const INK = '#0E1A24';
+export const PAPER = '#FFF6E8';
+export const SUN = '#FFD94D';
+export const PINK = '#FF5A8A';
+export const ORANGE = '#FF6B35';
+export const OCEAN = '#2E7FB8';
+export const TEAL = '#1F8A7A';
 
 export const SIZES = {
-  square: { label: 'Square · 1080 × 1080', w: 1080, h: 1080, short: '1080×1080' },
-  portrait: { label: 'Portrait · 1080 × 1350', w: 1080, h: 1350, short: '1080×1350' },
-  landscape: { label: 'Landscape · 1920 × 1080', w: 1920, h: 1080, short: '1920×1080' },
+  landscape: {
+    label: '1920 × 1080', exportW: 1920, exportH: 1080,
+    caption: 'SUNSET DRIVE', sub: 'OCEAN DRIVE • EST. 2026',
+    capScale: 0.91, capGap: 0.076, ruleGap: 0.015, grade: 0,
+  },
+  portrait: {
+    label: '1080 × 1350', exportW: 1080, exportH: 1350,
+    caption: 'NEON NIGHTS', sub: 'VICE CITY • EST. 2026',
+    capScale: 0.75, capGap: 0.073, ruleGap: 0.011, grade: 1,
+  },
+  square: {
+    label: '1080 × 1080', exportW: 1080, exportH: 1080,
+    caption: 'PALM DUSK', sub: 'PALMS MOTEL • VACANCY',
+    capScale: 1.0, capGap: 0.077, ruleGap: 0.011, grade: 0,
+  },
 };
 
+// Each layout is a list of slots. A slot is a polygon (fractions of W/H),
+// a default sample and a focal point (fx, fy) the cover-fit centres on.
 export const LAYOUTS = {
-  diagonal: {
-    label: 'Diagonal 3',
-    hint: 'Hero left, two stacked right',
+  trio: {
+    name: 'Trio',
     slots: [
-      [[0, 0], [0.64, 0], [0.54, 1], [0, 1]],
-      [[0.64, 0], [1, 0], [1, 0.5], [0.59, 0.5]],
-      [[0.59, 0.5], [1, 0.5], [1, 1], [0.54, 1]],
-    ],
-    dividers: [
-      [[0.64, 0], [0.54, 1]],
-      [[0.59, 0.5], [1, 0.5]],
-    ],
-  },
-  grid: {
-    label: 'Grid 4',
-    hint: 'Four panels, diagonal split',
-    slots: [
-      [[0, 0], [0.58, 0], [0.48, 0.5], [0, 0.5]],
-      [[0.58, 0], [1, 0], [1, 0.5], [0.48, 0.5]],
-      [[0, 0.5], [0.48, 0.5], [0.42, 1], [0, 1]],
-      [[0.48, 0.5], [1, 0.5], [1, 1], [0.42, 1]],
-    ],
-    dividers: [
-      [[0.58, 0], [0.48, 0.5]],
-      [[0.48, 0.5], [0.42, 1]],
-      [[0, 0.5], [1, 0.5]],
-    ],
-  },
-  hero: {
-    label: 'Hero 3',
-    hint: 'One wide hero, two below',
-    slots: [
-      [[0, 0], [1, 0], [1, 0.5], [0, 0.7]],
-      [[0, 0.7], [0.5, 0.6], [0.5, 1], [0, 1]],
-      [[0.5, 0.6], [1, 0.5], [1, 1], [0.5, 1]],
-    ],
-    dividers: [
-      [[0, 0.7], [1, 0.5]],
-      [[0.5, 0.6], [0.5, 1]],
+      { poly: [[0, 0], [0.60, 0], [0.52, 1], [0, 1]], sample: 'boulevard', fx: 0.5, fy: 0.35 },
+      { poly: [[0.60, 0], [1, 0], [1, 0.5], [0.56, 0.5]], sample: 'nightdrive', fx: 0.48, fy: 0.5, zoom: 1.06 },
+      { poly: [[0.56, 0.5], [1, 0.5], [1, 1], [0.52, 1]], sample: 'pier', fx: 0.44, fy: 0.424, zoom: 1.06 },
     ],
   },
   duo: {
-    label: 'Duo 2',
-    hint: 'Two panels, diagonal cut',
+    name: 'Duo',
     slots: [
-      [[0, 0], [0.58, 0], [0.42, 1], [0, 1]],
-      [[0.58, 0], [1, 0], [1, 1], [0.42, 1]],
+      { poly: [[0, 0], [0.58, 0], [0.52, 1], [0, 1]], sample: 'boulevard', fx: 0.5, fy: 0.35 },
+      { poly: [[0.58, 0], [1, 0], [1, 1], [0.52, 1]], sample: 'nightdrive', fx: 0.5, fy: 0.5 },
     ],
-    dividers: [
-      [[0.58, 0], [0.42, 1]],
+  },
+  strip: {
+    name: 'Strip',
+    slots: [
+      { poly: [[0, 0], [1, 0], [1, 0.55], [0, 0.62]], sample: 'boulevard', fx: 0.5, fy: 0.35 },
+      { poly: [[0, 0.62], [0.54, 0.55], [0.50, 1], [0, 1]], sample: 'pier', fx: 0.5, fy: 0.45 },
+      { poly: [[0.54, 0.55], [1, 0.55], [1, 1], [0.50, 1]], sample: 'street', fx: 0.5, fy: 0.5 },
+    ],
+  },
+  quad: {
+    name: 'Quad',
+    slots: [
+      { poly: [[0, 0], [0.55, 0], [0.50, 0.5], [0, 0.5]], sample: 'boulevard', fx: 0.5, fy: 0.35 },
+      { poly: [[0.55, 0], [1, 0], [1, 0.5], [0.50, 0.5]], sample: 'nightdrive', fx: 0.5, fy: 0.5 },
+      { poly: [[0, 0.5], [0.50, 0.5], [0.55, 1], [0, 1]], sample: 'pier', fx: 0.5, fy: 0.45 },
+      { poly: [[0.50, 0.5], [1, 0.5], [1, 1], [0.55, 1]], sample: 'street', fx: 0.5, fy: 0.5 },
     ],
   },
 };
 
-export const GRADES = {
-  sunset: {
-    label: 'Sunset Strip',
-    hint: 'Warm orange wash, sun glow',
-    washTop: 'rgba(255, 107, 53, 0)',
-    washBottom: 'rgba(255, 107, 53, 0.24)',
-    glow: 'rgba(255, 217, 77, 0.38)',
-    glowAt: [0.76, 0.16],
-    tint: null,
-    vignette: 0.3,
-  },
-  neon: {
-    label: 'Neon Nights',
-    hint: 'Pink dusk, cyan streets',
-    washTop: 'rgba(255, 90, 138, 0.20)',
-    washBottom: 'rgba(46, 127, 184, 0.22)',
-    glow: 'rgba(255, 90, 138, 0.30)',
-    glowAt: [0.2, 0.14],
-    tint: null,
-    vignette: 0.34,
-  },
-  noir: {
-    label: 'Vice Noir',
-    hint: 'Desaturated, hard contrast',
-    washTop: 'rgba(14, 26, 36, 0.10)',
-    washBottom: 'rgba(14, 26, 36, 0.30)',
-    glow: 'rgba(255, 217, 77, 0.12)',
-    glowAt: [0.5, 0.5],
-    tint: 'grayscale(0.85) contrast(1.14)',
-    vignette: 0.42,
-  },
-  dusk: {
-    label: 'Palm Dusk',
-    hint: 'Pink to amber evening',
-    washTop: 'rgba(255, 90, 138, 0.16)',
-    washBottom: 'rgba(255, 140, 40, 0.26)',
-    glow: 'rgba(255, 217, 77, 0.26)',
-    glowAt: [0.5, 0.08],
-    tint: null,
-    vignette: 0.3,
-  },
-};
-
-export const SAMPLES = [
-  { id: 'sample-street', name: 'Palms Motel', src: 'samples/street.jpg', fy: 0.1, fx: 0.5, thumbPos: 'center' },
-  { id: 'sample-night', name: 'Night Drive', src: 'samples/nightdrive.jpg', fy: 0.5, fx: 0.5, thumbPos: 'center' },
-  { id: 'sample-boulevard', name: 'Boulevard', src: 'samples/boulevard.jpg', fy: 0.05, fx: 0.5, thumbPos: 'top' },
-  { id: 'sample-pier', name: 'Pier', src: 'samples/pier.jpg', fy: 0.3, fx: 0.5, thumbPos: 'center 30%' },
+// Grade washes drawn over the panels: { colour, alpha, composite }.
+export const GRADES = [
+  { name: 'Sunset', washes: [
+    { c: '#FF6B35', a: 0.10, m: 'screen' },
+    { c: '#FF5A8A', a: 0.18, m: 'screen' },
+    { c: '#2E7FB8', a: 0.08, m: 'soft-light' },
+  ] },
+  { name: 'Neon', washes: [
+    { c: '#FF5A8A', a: 0.30, m: 'screen' },
+    { c: '#2E7FB8', a: 0.16, m: 'soft-light' },
+  ] },
+  { name: 'Noir', washes: [
+    { c: '#8A97A8', a: 0.18, m: 'color' },
+    { c: '#0E1A24', a: 0.12, m: 'multiply' },
+  ] },
+  { name: 'Palm', washes: [
+    { c: '#1F8A7A', a: 0.20, m: 'screen' },
+    { c: '#FFD94D', a: 0.10, m: 'screen' },
+  ] },
+  { name: 'Vice', washes: [
+    { c: '#FF5A8A', a: 0.22, m: 'screen' },
+    { c: '#2E7FB8', a: 0.20, m: 'overlay' },
+  ] },
 ];
 
-export const DEFAULT_CAPTION = 'SUNSET DRIVE';
-export const DEFAULT_SUBCAPTION = 'OCEAN DRIVE · EST. 2026';
+export const SAMPLES = [
+  { id: 'boulevard', name: 'Boulevard', file: 'samples/boulevard.jpg', fx: 0.5, fy: 0.35 },
+  { id: 'nightdrive', name: 'Night Drive', file: 'samples/nightdrive.jpg', fx: 0.5, fy: 0.5 },
+  { id: 'pier', name: 'Pier Dusk', file: 'samples/pier.jpg', fx: 0.5, fy: 0.45 },
+  { id: 'street', name: 'Street', file: 'samples/street.jpg', fx: 0.5, fy: 0.5 },
+];
 
-export function defaultPanels(layoutId, fill = false) {
-  const n = LAYOUTS[layoutId].slots.length;
-  const photos = ['sample-street', 'sample-night', 'sample-boulevard', 'sample-pier'];
-  return Array.from({ length: n }, (_, i) => ({
-    photoId: fill ? photos[i % photos.length] : null,
-    zoom: 1.12,
-    ox: 0,
-    oy: 0,
-  }));
+export const CAPTION_COLORS = [
+  { name: 'Paper', value: '#FFF6E8' },
+  { name: 'White', value: '#FFFFFF' },
+  { name: 'Sun', value: '#FFD94D' },
+  { name: 'Pink', value: '#FF5A8A' },
+  { name: 'Sky', value: '#8FD8FF' },
+];
+
+// Right edge x (fraction of W) of the hero polygon at a given y fraction.
+// Used to cap the caption width so it never crosses the diagonal.
+export function heroRightAtY(layout, yFrac) {
+  const poly = LAYOUTS[layout].slots[0].poly;
+  let best = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const [x1, y1] = poly[i];
+    const [x2, y2] = poly[(i + 1) % poly.length];
+    if ((y1 <= yFrac && y2 >= yFrac) || (y2 <= yFrac && y1 >= yFrac)) {
+      if (y2 === y1) { best = Math.max(best, x1, x2); continue; }
+      const t = (yFrac - y1) / (y2 - y1);
+      best = Math.max(best, x1 + (x2 - x1) * t);
+    }
+  }
+  return best || 1;
 }

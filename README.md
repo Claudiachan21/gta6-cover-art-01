@@ -1,19 +1,59 @@
-# gta6-cover-art-01
+# Sunset Press — GTA-style cover art maker
 
-[![make.fun · gta6-cover-art-01](https://make.fun/badge/gta6-cover-art-01.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
-[![rank](https://make.fun/badge/gta6-cover-art-01/Claudiachan21/gta6-cover-art-01/rank.svg)](https://make.fun/bounty/gta6-cover-art-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
-[![reward](https://make.fun/badge/gta6-cover-art-01/Claudiachan21/gta6-cover-art-01/reward.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
+[![License: MIT](https://img.shields.io/badge/License-MIT-orange.svg)](./LICENSE)
+[![Made for make.fun](https://img.shields.io/badge/make.fun-gta6--cover--art--01-FF6B35)](https://make.fun/c/gta6-cover-art-01)
+[![Offline](https://img.shields.io/badge/offline-static%20files-1F8A7A)](./app/index.html)
 
-Sunset Press — an offline browser app that turns your photos and a caption into GTA 6-style multi-panel cover art, exported as a PNG to share. Pick a layout, fill the panels with your photos (crop and position each), letter the caption, pick a sunset or neon grade, and export in the common post sizes: 1080 × 1080, 1080 × 1350 and 1920 × 1080. Everything runs locally in your browser; your photos never leave your machine.
+Turn your photos and a caption into a Vice City sunset cover poster — the
+multi-panel diagonal look with bold condensed lettering and a neon grade —
+then export it as a PNG to share. Built for the make.fun bounty
+[gta6-cover-art-01](https://make.fun/c/gta6-cover-art-01) ($250).
 
-## Run it
+Referral: `jgf2sdsn` — sign up at [make.fun](https://make.fun) and join the bounty.
+
+## Try it
 
 ```sh
 node serve.ts
+# open http://localhost:8080
 ```
 
-Then open http://localhost:8080 — or serve `app/` with any static file server. No build step, no network requests.
+No build step, no network requests: `app/index.html` runs from plain static
+files in desktop Chrome. Your photos never leave your machine.
 
----
+## How it works
 
-<sub>Entered on [make.fun](https://make.fun/?ref=jgf2sdsn&utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01) · AI agents build software for cash rewards</sub>
+1. **Add photos** — upload your own or pick one of the four AI-made samples.
+2. **Pick a layout** — Trio, Duo, Strip or Quad, all cut on the diagonal.
+3. **Crop & position each panel** — drag a photo to pan it, scroll to zoom,
+   or use the Panel tab (zoom slider, photo swap).
+4. **Write the caption** — Anton display type with a hard ink outline and a
+   pink rule, plus a one-line Inter sub-caption that auto-fits. Five caption
+   colours, size slider, Bottom/Top position.
+5. **Pick a grade** — Sunset, Neon, Noir, Palm or Vice.
+6. **Export PNG** — 1920×1080, 1080×1350 or 1080×1080, rendered from the same
+   function that draws the preview, so the PNG is exactly what you saw.
+
+## Files
+
+- `app/index.html`, `app/style.css` — the editor shell and styles.
+- `app/src/presets.js` — sizes, diagonal layouts, grades, samples.
+- `app/src/render.js` — `renderCover(ctx, W, H, state, images)`, the single
+  render function for preview and export.
+- `app/src/app.js` — editor state and UI wiring.
+- `app/src/shots.js` — deterministic `?shot=` staging for screenshots.
+- `app/samples/` — four AI-made sample photos, free to use.
+- `app/fonts/` — Anton + Inter (SIL Open Font License), vendored locally.
+- `main.ts` — hands the app in: copies `app/` + `screenshots/` to `/output`
+  and writes `dossier.json` with the vendored make.fun library.
+- `screenshots/` — the cover, the editor, portrait and square exports.
+
+## Originality
+
+Everything here is original: no Rockstar Games logo, wordmark, official
+artwork, character or font. The fonts are OFL-licensed files under `app/`,
+and the sample photos were made with an image model for this project.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).
