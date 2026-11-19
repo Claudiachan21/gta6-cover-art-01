@@ -1,8 +1,8 @@
 # Sunset Press — GTA-style cover art maker
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-orange.svg)](./LICENSE)
-[![Made for make.fun](https://img.shields.io/badge/make.fun-gta6--cover--art--01-FF6B35)](https://make.fun/c/gta6-cover-art-01)
-[![Offline](https://img.shields.io/badge/offline-static%20files-1F8A7A)](./app/index.html)
+[![make.fun · gta6-cover-art-01](https://make.fun/badge/gta6-cover-art-01.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
+[![rank](https://make.fun/badge/gta6-cover-art-01/Claudiachan21/gta6-cover-art-01/rank.svg)](https://make.fun/bounty/gta6-cover-art-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
+[![reward](https://make.fun/badge/gta6-cover-art-01/Claudiachan21/gta6-cover-art-01/reward.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
 
 Turn your photos and a caption into a Vice City sunset cover poster — the
 multi-panel diagonal look with bold condensed lettering and a neon grade —
