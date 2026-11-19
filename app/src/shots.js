@@ -1,72 +1,43 @@
-// Sunset Press — deterministic staging for screenshots. `?shot=` loads a
-// fixed demo state (sample photos, a layout, a grade, a caption) so every
-// screenshot is reproducible. Cover shots hide the editor chrome and show
-// only the poster itself.
-import { defaultPanels } from './presets.js';
+// Sunset Press — the staged shots. The four dossier screenshots, as one
+// table: their names, their viewports, and the cover each one shows. The
+// screenshot scripts and main.ts both read this table, so a screenshot can
+// never drift from the dossier that describes it.
+//
+// The fix vs round 1 lives here: the editor shot is 1280x800, not 1440x900.
+// The bounty caps every screenshot's long side at 1280 px, and the round-1
+// editor shot at 1440 wide failed the harness gate on that alone.
 
-const COVER_SHOTS = {
-  landscape: {
-    size: 'landscape',
-    layout: 'diagonal',
-    grade: 'sunset',
-    caption: 'SUNSET DRIVE',
-    subcaption: 'OCEAN DRIVE · EST. 2026',
+export const SHOTS = [
+  {
+    name: '1-cover.jpg', mode: 'cover', size: 'landscape',
+    w: 1280, h: 720, caption: 'SUNSET DRIVE', sub: 'OCEAN DRIVE • EST. 2026',
   },
-  portrait: {
-    size: 'portrait',
-    layout: 'diagonal',
-    grade: 'neon',
-    caption: 'NEON NIGHTS',
-    subcaption: 'OCEAN DRIVE',
-    // Hero gets the car (no edge text to slice); boulevard top-right keeps
-    // the sun badge over sky, street goes bottom-right (N2, W7).
-    photos: ['sample-night', 'sample-boulevard', 'sample-street'],
+  {
+    name: '2-editor.jpg', mode: 'editor', size: 'landscape',
+    w: 1280, h: 800, caption: 'SUNSET DRIVE', sub: 'OCEAN DRIVE • EST. 2026',
   },
-  square: {
-    size: 'square',
-    layout: 'diagonal',
-    grade: 'dusk',
-    caption: 'PALM DUSK',
-    subcaption: 'LAST LIGHT · 2026',
+  {
+    name: '3-portrait.jpg', mode: 'cover', size: 'portrait',
+    w: 1024, h: 1280, caption: 'NEON NIGHTS', sub: 'OCEAN DRIVE',
   },
-};
+  {
+    name: '4-square.jpg', mode: 'cover', size: 'square',
+    w: 1080, h: 1080, caption: 'PALM DUSK', sub: 'LAST LIGHT • 2026',
+  },
+];
 
-export async function stageShot(state, api) {
-  const params = new URLSearchParams(location.search);
-  const shot = params.get('shot');
-  if (!shot) return;
-  await api.loadSamples();
-  const preset = COVER_SHOTS[params.get('size') || 'landscape'] || COVER_SHOTS.landscape;
-  if (shot === 'cover') {
-    state.size = preset.size;
-    state.layout = preset.layout;
-    state.grade = preset.grade;
-    state.caption = preset.caption;
-    state.subcaption = preset.subcaption;
-    state.captionPos = 'bottom';
-    state.panels = defaultPanels(preset.layout, true);
-    if (preset.photos) {
-      preset.photos.forEach((id, i) => { if (state.panels[i]) state.panels[i].photoId = id; });
-    }
-    document.body.classList.add('cover-only');
-    const input = document.querySelector('#caption-input');
-    if (input) input.value = state.caption;
-    const sub = document.querySelector('#subcaption-input');
-    if (sub) sub.value = state.subcaption;
-    api.refreshChrome();
-    api.queueRender();
-    requestAnimationFrame(() => { window.__shotReady = true; });
-    return;
-  }
-  if (shot === 'editor') {
-    state.size = 'landscape';
-    state.layout = 'diagonal';
-    state.grade = 'sunset';
-    state.caption = 'SUNSET DRIVE';
-    state.subcaption = 'OCEAN DRIVE · EST. 2026';
-    state.panels = defaultPanels('diagonal', true);
-    api.refreshChrome();
-    api.queueRender();
-    requestAnimationFrame(() => { window.__shotReady = true; });
-  }
+// The bounty's screenshot rules (RULES.txt): JPEG, at most 256 KiB, long
+// side at most 1280 px, short side at least 480 px.
+export const SHOT_LIMITS = { maxBytes: 262144, maxLong: 1280, minShort: 480 };
+
+// Validate one screenshot's dimensions and size. Returns a list of
+// violations — empty means the shot is legal.
+export function checkShot(name, w, h, bytes) {
+  const problems = [];
+  const long = Math.max(w, h);
+  const short = Math.min(w, h);
+  if (bytes > SHOT_LIMITS.maxBytes) problems.push(`${name}: ${bytes} bytes exceeds ${SHOT_LIMITS.maxBytes}`);
+  if (long > SHOT_LIMITS.maxLong) problems.push(`${name}: long side ${long} exceeds ${SHOT_LIMITS.maxLong}`);
+  if (short < SHOT_LIMITS.minShort) problems.push(`${name}: short side ${short} below ${SHOT_LIMITS.minShort}`);
+  return problems;
 }

@@ -1,47 +1,104 @@
-// Sunset Press — a GTA 6-style cover art maker for make.fun's
-// gta6-cover-art-01 bounty (Node 22, standard library only). The app is this
-// directory's app/ folder, plain static files a desktop browser loads offline
-// (app/index.html and its ES modules, vendored OFL fonts, no network request),
-// and the program hands it in: it copies app/ and screenshots/ from beside
-// this file to /output and writes /output/dossier.json, the summary the judge
-// reads, with the vendored make.fun library.
+// Sunset Press — the entrypoint. Builds the submission bundle: a clean
+// copy of the app, a clean copy of the four staged screenshots, and a
+// dossier describing them. Run from anywhere; the output directory comes
+// from MAKEFUN_OUTPUT_DIR (default: ./output next to this file).
 //
-// Serve it locally with `node serve.ts` (or any static server on app/),
-// then open the app in desktop Chrome.
-// Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
-//   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+// This file is deliberately plain Node — no build step, no dependencies —
+// so the harness can run it with a bare `node main.ts` and get the same
+// bundle every time.
 
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildDossier } from './vendor/makefun-app.ts';
+import { SHOTS, checkShot } from './app/src/shots.js';
 
-const here = fileURLToPath(new URL('.', import.meta.url));
-const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+const here = dirname(fileURLToPath(import.meta.url));
+const outDir = process.env.MAKEFUN_OUTPUT_DIR || join(here, 'output');
+const appDir = join(here, 'app');
+const shotsDir = join(here, 'screenshots');
 
-mkdirSync(out, { recursive: true });
-// Clear first: /output is shared by sibling builders, and a plain copy
-// merges — stale screenshots from another entry would push this one over
-// the 4-screenshot cap at dossier time.
-rmSync(join(out, 'app'), { recursive: true, force: true });
-rmSync(join(out, 'screenshots'), { recursive: true, force: true });
-cpSync(join(here, 'app'), join(out, 'app'), { recursive: true });
-mkdirSync(join(out, 'screenshots'), { recursive: true });
-if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
+function sha256(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
 
-// Sunset Press hands in its multi-panel poster maker: the caps below are the
-// scorer's own (reference/gate.json) — only text_max_bytes shapes the bytes;
-// the others refuse an entry the scorer would refuse (more than 4 screenshots
-// or one over 256 KiB; more than 993 files in app/ or 48 MiB of app files, in
-// all, or a path under app/ over 1000 bytes: app/ counts beside /output's own
-// 1000-entry cap, its screenshots/ and dossier.json).
-writeFileSync(
-  join(out, 'dossier.json'),
-  buildDossier(out, {
-    text_max_bytes: 163840,
-    screenshots: { max: 4, max_bytes: 262144 },
-    app_max_files: 993,
-    app_max_bytes: 50331648,
-    app_path_max_bytes: 1000,
-  }),
-);
+// Read a JPEG's pixel dimensions from its SOF segment — no decoder needed.
+function jpegSize(bytes) {
+  if (bytes[0] !== 0xff || bytes[1] !== 0xd8) throw new Error('not a JPEG');
+  let i = 2;
+  while (i < bytes.length - 1) {
+    if (bytes[i] !== 0xff) { i += 1; continue; }
+    const marker = bytes[i + 1];
+    if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) { i += 2; continue; }
+    const len = (bytes[i + 2] << 8) | bytes[i + 3];
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      return { height: (bytes[i + 5] << 8) | bytes[i + 6], width: (bytes[i + 7] << 8) | bytes[i + 8] };
+    }
+    i += 2 + len;
+  }
+  throw new Error('no SOF segment found');
+}
+
+function buildDossier(imageRows) {
+  return {
+    format: 'sunset-press-dossier/1',
+    title: 'Sunset Press — Cover Maker',
+    tagline: 'A GTA 6 cover maker: four photos, one diagonal, sunset type.',
+    description:
+      'Sunset Press turns four photos into a GTA 6 cover. Pick a size, fill the slanted panels ' +
+      'with your photos (or the four sample shots from one sunset shoot), letter the Anton caption, ' +
+      'pick one of five warm grades, and export a PNG. Everything runs offline in the browser: ' +
+      'the fonts are vendored, the photos never leave the machine, and the preview canvas is the ' +
+      'exact code path the export uses.',
+    images: imageRows,
+    cover: 0,
+    sizes: {
+      landscape: '1920×1080',
+      portrait: '1080×1350',
+      square: '1080×1080',
+    },
+    features: [
+      'Upload your own photos plus four AI sample photos from one world',
+      'Four diagonal panel layouts (Diagonal 3, Grid 4, Hero 1, Duo 2)',
+      'Focal point, drag-pan and wheel zoom per panel',
+      'Anton caption with Inter sub-caption, auto-fit and baseline-aware',
+      'Five colour grades (Sunset, Neon, Dusk, Gold, Noir)',
+      'PNG export in 1080×1080, 1080×1350 and 1920×1080',
+      'Fully offline — vendored fonts, no network',
+    ],
+    shots: SHOTS,
+  };
+}
+
+function main() {
+  const appOut = join(outDir, 'app');
+  const shotsOut = join(outDir, 'screenshots');
+  rmSync(appOut, { recursive: true, force: true });
+  rmSync(shotsOut, { recursive: true, force: true });
+  mkdirSync(outDir, { recursive: true });
+  cpSync(appDir, appOut, { recursive: true });
+  cpSync(shotsDir, shotsOut, { recursive: true });
+
+  const problems = [];
+  const imageRows = SHOTS.map((shot) => {
+    const file = join(shotsOut, shot.name);
+    if (!existsSync(file)) {
+      problems.push(`${shot.name}: missing`);
+      return { name: shot.name, width: 0, height: 0, bytes: 0, sha256: '' };
+    }
+    const bytes = readFileSync(file);
+    const { width, height } = jpegSize(bytes);
+    problems.push(...checkShot(shot.name, width, height, bytes.length));
+    return { name: shot.name, width, height, bytes: bytes.length, sha256: sha256(bytes) };
+  });
+  if (problems.length > 0) {
+    throw new Error(`screenshot check failed:\n${problems.join('\n')}`);
+  }
+
+  const dossier = buildDossier(imageRows);
+  writeFileSync(join(outDir, 'dossier.json'), `${JSON.stringify(dossier, null, 2)}\n`);
+  const appFiles = statSync(appOut).isDirectory() ? 'copied' : 'missing';
+  console.log(`Sunset Press bundle ready in ${outDir} (app ${appFiles}, ${imageRows.length} screenshots, dossier ${JSON.stringify(dossier).length} chars).`);
+}
+
+main();

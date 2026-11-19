@@ -1,523 +1,444 @@
-// Sunset Press — editor state and wiring. The preview canvas and the PNG
-// export share one renderer (render.js), so the poster you see is the
-// poster you share.
-import { SIZES, LAYOUTS, GRADES, SAMPLES, DEFAULT_CAPTION, DEFAULT_SUBCAPTION, defaultPanels } from './presets.js';
+// Sunset Press — the editor. Wires the DOM to the renderer: size, layout,
+// grade, caption, photos, drag-pan and wheel zoom, PNG export. The staged
+// screenshot mode (?shot=cover / ?shot=editor) renders the approved cover
+// for the dossier and signals readiness for the screenshot scripts.
+
+import { SAMPLES, GRADES, LAYOUTS, CAPTION_COLORS, CAPTION_SCALE, SIZE_DEFAULTS, sampleById, gradeById } from './presets.js';
 import { renderCover } from './render.js';
-import { stageShot } from './shots.js';
+
+// The three export sizes. The label is what the stage shows.
+const SIZES = {
+  landscape: { w: 1920, h: 1080, label: '1920×1080' },
+  portrait: { w: 1080, h: 1350, label: '1080×1350' },
+  square: { w: 1080, h: 1080, label: '1080×1080' },
+};
+
+const params = new URLSearchParams(location.search);
+const SHOT = params.get('shot'); // 'cover' | 'editor' | null
+const SHOT_SIZE = params.get('size') || 'landscape';
+
+// ---------------------------------------------------------------- state
+
+const state = {
+  size: 'landscape',
+  layout: 'diagonal',
+  grade: 'sunset',
+  capScale: 0.91,
+  caption: 'SUNSET DRIVE',
+  sub: 'OCEAN DRIVE • EST. 2026',
+  captionColor: '#FFFFFF',
+  captionScale: CAPTION_SCALE.default,
+  captionPos: 'bottom',
+  captionEdited: false,
+  panels: [],
+  selected: 0,
+  pan: {},
+  zoom: {},
+};
+
+// id -> { img, focal } for the samples and the user's uploads.
+const images = {};
+const uploads = [];
+
+function applySizeDefaults(sizeId, withPanels = true) {
+  const def = SIZE_DEFAULTS[sizeId];
+  if (!def) return;
+  state.layout = def.layout;
+  state.grade = def.grade;
+  state.capScale = def.capScale || 1;
+  // The panels are only staged when asked: at a cold start the stage is
+  // empty (the empty state shows), and the samples load on demand.
+  if (withPanels) state.panels = [...def.panels];
+  // The user's own lettering is never overwritten by a size switch.
+  if (!state.captionEdited) {
+    state.caption = def.caption;
+    state.sub = def.sub;
+  }
+}
+
+// ----------------------------------------------------------------- dom
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 
-const CAPTION_COLORS = [
-  { name: 'White', value: '#FFFFFF' },
-  { name: 'Sun yellow', value: '#FFD94D' },
-  { name: 'Neon pink', value: '#FF5A8A' },
-  { name: 'Ocean blue', value: '#2E7FB8' },
-  { name: 'Ink', value: '#0E1A24' },
-];
-
-function loadSettings() {
-  try {
-    return JSON.parse(localStorage.getItem('sunset-press-settings') || '{}');
-  } catch (e) {
-    return {};
-  }
-}
-
-function saveSettings(state) {
-  try {
-    localStorage.setItem('sunset-press-settings', JSON.stringify({
-      size: state.size,
-      layout: state.layout,
-      grade: state.grade,
-      gradeStrength: state.gradeStrength,
-      caption: state.caption,
-      subcaption: state.subcaption,
-      captionColor: state.captionColor,
-      captionScale: state.captionScale,
-      captionPos: state.captionPos,
-    }));
-  } catch (e) { /* private mode */ }
-}
-
-const saved = loadSettings();
-const state = {
-  size: saved.size || 'landscape',
-  layout: saved.layout || 'diagonal',
-  grade: saved.grade || 'sunset',
-  gradeStrength: saved.gradeStrength == null ? 0.55 : saved.gradeStrength,
-  caption: saved.caption || DEFAULT_CAPTION,
-  subcaption: saved.subcaption || DEFAULT_SUBCAPTION,
-  captionColor: saved.captionColor || '#FFFFFF',
-  captionScale: saved.captionScale || 0.145,
-  captionPos: saved.captionPos || 'bottom',
-  panels: defaultPanels(saved.layout || 'diagonal'),
-  photos: [],
-  selectedPanel: 0,
-};
-
 const canvas = $('#cover-canvas');
 const ctx = canvas.getContext('2d');
-let renderQueued = false;
-let fontsReady = false;
+const emptyState = $('#empty-state');
+const sizeLabel = $('#size-label');
+const layoutLabel = $('#layout-label');
+const statusEl = $('#export-status');
+const captionPreview = $('#caption-preview');
 
-function currentSize() {
-  return SIZES[state.size];
-}
-
-function queueRender() {
-  if (renderQueued) return;
-  renderQueued = true;
-  requestAnimationFrame(() => {
-    renderQueued = false;
-    draw();
-  });
-}
-
-function draw() {
-  const { w, h } = currentSize();
-  const previewScale = Math.min(1, 1200 / Math.max(w, h));
-  canvas.width = Math.round(w * previewScale);
-  canvas.height = Math.round(h * previewScale);
-  renderCover(ctx, canvas.width, canvas.height, state);
-}
-
-function anyPhotoLoaded() {
-  return state.panels.some((p) => p.photoId);
-}
-
-function refreshChrome() {
-  $('#size-label').textContent = currentSize().short;
-  $('#layout-label').textContent = `Layout · ${LAYOUTS[state.layout].label}`;
-  $('#empty-state').hidden = anyPhotoLoaded();
-  const panel = state.panels[state.selectedPanel];
-  $('#panel-name').textContent = `Panel ${state.selectedPanel + 1} of ${state.panels.length}`;
-  $('#panel-zoom').value = String(panel ? panel.zoom : 1.12);
-  const sel = $('#panel-photo');
-  sel.value = panel && panel.photoId ? panel.photoId : '';
-  $$('.size-switch [data-size]').forEach((b) => {
-    b.setAttribute('aria-pressed', String(b.dataset.size === state.size));
-  });
-  $$('.layout-card').forEach((b) => {
-    b.setAttribute('aria-pressed', String(b.dataset.layout === state.layout));
-  });
-  $$('.grade-card').forEach((b) => {
-    b.setAttribute('aria-pressed', String(b.dataset.grade === state.grade));
-  });
-  $$('.swatch').forEach((b) => {
-    b.setAttribute('aria-pressed', String(b.dataset.color === state.captionColor));
-  });
-  $$('.pos-btn').forEach((b) => {
-    b.setAttribute('aria-pressed', String(b.dataset.pos === state.captionPos));
-  });
-  $('#caption-preview').textContent = state.caption || '—';
-  $$('.thumb').forEach((t) => {
-    t.setAttribute('aria-pressed', String(state.panels[state.selectedPanel]?.photoId === t.dataset.photoId));
-  });
-  saveSettings(state);
-}
-
-function addPhoto(photo) {
-  const existing = state.photos.find((p) => p.id === photo.id);
-  if (existing) return existing;
-  state.photos.push(photo);
-  return photo;
-}
+// -------------------------------------------------------------- images
 
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`could not load ${src}`));
+    img.onerror = () => reject(new Error(`cannot load ${src}`));
     img.src = src;
   });
 }
 
 async function loadSamples() {
-  for (const s of SAMPLES) {
-    if (state.photos.some((p) => p.id === s.id)) continue;
-    try {
-      const img = await loadImage(s.src);
-      addPhoto({ id: s.id, name: s.name, src: s.src, img, w: img.naturalWidth, h: img.naturalHeight, fx: s.fx, fy: s.fy, thumbPos: s.thumbPos });
-    } catch (e) { /* sample missing: skip it */ }
-  }
-  renderSampleThumbs();
-  buildPanelPhotoSelect();
-  refreshChrome();
-  queueRender();
+  await Promise.all(SAMPLES.map(async (s) => {
+    if (images[s.id]) return;
+    const img = await loadImage(`samples/${s.file}`);
+    images[s.id] = { img, focal: s.focal };
+  }));
 }
 
-function photoThumb(photo, pressed) {
+function loadUpload(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => resolve({ img, url });
+    img.onerror = () => reject(new Error('cannot load upload'));
+    img.src = url;
+  });
+}
+
+// -------------------------------------------------------------- render
+
+function render() {
+  const size = SIZES[state.size];
+  canvas.width = size.w;
+  canvas.height = size.h;
+  window.__coverDebug = renderCover(ctx, size.w, size.h, state, images);
+  updateChrome();
+}
+
+function updateChrome() {
+  sizeLabel.textContent = SIZES[state.size].label;
+  const layout = LAYOUTS[state.layout];
+  layoutLabel.textContent = `LAYOUT · ${layout.name.toUpperCase()}`;
+  $$('[data-size]').forEach((b) => b.classList.toggle('active', b.dataset.size === state.size));
+  $$('[data-layout]').forEach((b) => b.classList.toggle('active', b.dataset.layout === state.layout));
+  $$('[data-grade]').forEach((b) => b.classList.toggle('selected', b.dataset.grade === state.grade));
+  $$('[data-color]').forEach((b) => b.classList.toggle('selected', b.dataset.color === state.captionColor));
+  $$('[data-pos]').forEach((b) => b.classList.toggle('active', b.dataset.pos === state.captionPos));
+  captionPreview.textContent = state.caption;
+  const anyPhoto = state.panels.some((id) => id && images[id]);
+  emptyState.classList.toggle('hidden', anyPhoto);
+  updateSampleSelection();
+}
+
+function updateSampleSelection() {
+  const current = state.panels[state.selected];
+  $$('[data-sample]').forEach((el) => {
+    el.classList.toggle('selected', el.dataset.sample === current);
+  });
+}
+
+function setStatus(text) {
+  statusEl.textContent = text;
+}
+
+// ------------------------------------------------------------ controls
+
+function bindTabs() {
+  $$('[data-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      $$('[data-tab]').forEach((b) => b.classList.toggle('active', b === btn));
+      $$('.tab-panel').forEach((p) => p.classList.toggle('hidden', p.id !== `tab-${btn.dataset.tab}`));
+    });
+  });
+}
+
+function bindSizes() {
+  $$('[data-size]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.size = btn.dataset.size;
+      // Re-stage the panels only if the stage is already filled; a cold
+      // stage stays empty until the user loads samples.
+      applySizeDefaults(state.size, state.panels.some((p) => p));
+      state.pan = {};
+      state.zoom = {};
+      render();
+    });
+  });
+}
+
+function bindCaption() {
+  const input = $('#caption-input');
+  input.addEventListener('input', () => {
+    state.caption = input.value;
+    state.captionEdited = true;
+    render();
+  });
+  const subInput = $('#sub-input');
+  subInput.addEventListener('input', () => {
+    state.sub = subInput.value;
+    state.captionEdited = true;
+    render();
+  });
+  $$('[data-color]').forEach((sw) => {
+    sw.addEventListener('click', () => {
+      state.captionColor = sw.dataset.color;
+      render();
+    });
+  });
+  const range = $('#caption-size-range');
+  range.addEventListener('input', () => {
+    state.captionScale = parseFloat(range.value);
+    render();
+  });
+  $$('[data-pos]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.captionPos = btn.dataset.pos;
+      render();
+    });
+  });
+}
+
+function bindLayoutsAndGrades() {
+  $$('[data-layout]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.layout = btn.dataset.layout;
+      render();
+    });
+  });
+  $$('[data-grade]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.grade = btn.dataset.grade;
+      render();
+    });
+  });
+}
+
+function assignPhoto(id) {
+  if (!images[id]) return;
+  const layout = LAYOUTS[state.layout];
+  // Fill the first empty panel, otherwise the selected one.
+  let idx = state.panels.findIndex((p) => !p || !images[p]);
+  if (idx === -1) idx = state.selected;
+  if (idx >= layout.panels) idx = 0;
+  state.panels[idx] = id;
+  state.selected = idx;
+  render();
+}
+
+function bindPhotos() {
+  $$('[data-sample]').forEach((el) => {
+    el.addEventListener('click', () => assignPhoto(el.dataset.sample));
+  });
+  $('#btn-load-samples').addEventListener('click', async () => {
+    await loadSamples();
+    state.panels = [...SIZE_DEFAULTS[state.size].panels];
+    state.selected = 0;
+    render();
+  });
+  const fileInput = $('#file-input');
+  $('#btn-add-photos').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async () => {
+    for (const file of fileInput.files) {
+      try {
+        const { img } = await loadUpload(file);
+        const id = `upload-${uploads.length}`;
+        images[id] = { img, focal: { x: 0.5, y: 0.5 } };
+        uploads.push({ id, label: file.name.replace(/\.[^.]+$/, '') });
+        addUploadThumb(id, file.name);
+        assignPhoto(id);
+      } catch (e) {
+        setStatus(`Could not load ${file.name}.`);
+      }
+    }
+    fileInput.value = '';
+  });
+}
+
+function addUploadThumb(id, name) {
+  const list = $('#your-photos');
+  const empty = list.querySelector('.empty-note');
+  if (empty) empty.remove();
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'thumb';
-  btn.dataset.photoId = photo.id;
-  btn.setAttribute('aria-pressed', String(pressed));
-  btn.title = photo.name;
-  const img = document.createElement('img');
-  img.src = photo.src;
-  img.alt = photo.name;
-  img.style.objectPosition = photo.thumbPos || 'center';
-  const label = document.createElement('span');
-  label.textContent = photo.name;
-  btn.append(img, label);
-  btn.addEventListener('click', () => {
-    assignPhotoToSelected(photo.id);
-  });
-  return btn;
+  btn.className = 'thumb upload-thumb';
+  btn.dataset.sample = id;
+  btn.innerHTML = `<span class="thumb-label">${escapeHtml(name.replace(/\.[^.]+$/, ''))}</span>`;
+  btn.addEventListener('click', () => assignPhoto(id));
+  list.appendChild(btn);
 }
 
-function renderSampleThumbs() {
-  const grid = $('#sample-grid');
-  grid.replaceChildren();
-  for (const s of SAMPLES) {
-    const photo = state.photos.find((p) => p.id === s.id);
-    if (!photo) continue;
-    const btn = photoThumb(photo, false);
-    btn.dataset.sample = '';
-    grid.appendChild(btn);
-  }
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function renderUploadThumbs() {
-  const grid = $('#thumb-grid');
-  grid.replaceChildren();
-  const uploads = state.photos.filter((p) => !p.id.startsWith('sample-'));
-  $('#thumb-empty').hidden = uploads.length > 0;
-  for (const photo of uploads) {
-    grid.appendChild(photoThumb(photo, false));
-  }
+// ------------------------------------------------------- canvas input
+
+function toCanvasCoords(e) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: ((e.clientX - rect.left) / rect.width) * canvas.width,
+    y: ((e.clientY - rect.top) / rect.height) * canvas.height,
+  };
 }
 
-function assignPhotoToSelected(photoId) {
-  const panel = state.panels[state.selectedPanel];
-  if (!panel) return;
-  panel.photoId = photoId;
-  panel.zoom = 1.12;
-  panel.ox = 0;
-  panel.oy = 0;
-  refreshChrome();
-  queueRender();
-}
-
-function buildLayoutPicker() {
-  const grid = $('#layout-grid');
-  grid.replaceChildren();
-  for (const [id, layout] of Object.entries(LAYOUTS)) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'layout-card';
-    btn.dataset.layout = id;
-    btn.setAttribute('aria-pressed', String(id === state.layout));
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 100 64');
-    svg.classList.add('layout-diagram');
-    svg.setAttribute('aria-hidden', 'true');
-    layout.slots.forEach((slot, i) => {
-      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      poly.setAttribute('points', slot.map(([x, y]) => `${x * 100},${y * 64}`).join(' '));
-      poly.setAttribute('fill', ['#FF6B35', '#FFD94D', '#2E7FB8', '#1F8A7A'][i % 4]);
-      poly.setAttribute('stroke', '#0E1A24');
-      poly.setAttribute('stroke-width', '2');
-      svg.appendChild(poly);
-    });
-    const strong = document.createElement('strong');
-    strong.textContent = layout.label;
-    const span = document.createElement('span');
-    span.textContent = layout.hint;
-    btn.append(svg, strong, span);
-    btn.addEventListener('click', () => {
-      const old = state.panels;
-      state.layout = id;
-      const n = LAYOUTS[id].slots.length;
-      state.panels = Array.from({ length: n }, (_, i) => {
-        const prev = old[i];
-        return prev ? { ...prev } : { photoId: null, zoom: 1.12, ox: 0, oy: 0 };
-      });
-      state.selectedPanel = 0;
-      refreshChrome();
-      queueRender();
-    });
-    grid.appendChild(btn);
-  }
-}
-
-function buildGradePicker() {
-  const grid = $('#grade-grid');
-  grid.replaceChildren();
-  for (const [id, grade] of Object.entries(GRADES)) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'grade-card';
-    btn.dataset.grade = id;
-    btn.setAttribute('aria-pressed', String(id === state.grade));
-    const sw = document.createElement('span');
-    sw.className = 'grade-swatch';
-    sw.style.background = `linear-gradient(135deg, ${grade.glow}, ${grade.washBottom})`;
-    const strong = document.createElement('strong');
-    strong.textContent = grade.label;
-    const span = document.createElement('span');
-    span.textContent = grade.hint;
-    btn.append(sw, strong, span);
-    btn.addEventListener('click', () => {
-      state.grade = id;
-      refreshChrome();
-      queueRender();
-    });
-    grid.appendChild(btn);
-  }
-}
-
-function buildSwatches() {
-  const wrap = $('#caption-swatches');
-  wrap.replaceChildren();
-  for (const c of CAPTION_COLORS) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'swatch';
-    btn.dataset.color = c.value;
-    btn.style.background = c.value;
-    btn.title = c.name;
-    btn.setAttribute('aria-label', `Caption colour ${c.name}`);
-    btn.setAttribute('aria-pressed', String(c.value === state.captionColor));
-    btn.addEventListener('click', () => {
-      state.captionColor = c.value;
-      refreshChrome();
-      queueRender();
-    });
-    wrap.appendChild(btn);
-  }
-}
-
-function buildPanelPhotoSelect() {
-  const sel = $('#panel-photo');
-  sel.replaceChildren();
-  const none = document.createElement('option');
-  none.value = '';
-  none.textContent = '— Empty —';
-  sel.appendChild(none);
-  for (const photo of state.photos) {
-    const opt = document.createElement('option');
-    opt.value = photo.id;
-    opt.textContent = photo.name;
-    sel.appendChild(opt);
-  }
-}
-
-function pointInPolygon(x, y, poly) {
+function pointInPoly(x, y, poly) {
   let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i, i += 1) {
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const [xi, yi] = poly[i];
     const [xj, yj] = poly[j];
-    if (((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi)) inside = !inside;
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
   }
   return inside;
 }
 
-function canvasPoint(event) {
-  const rect = canvas.getBoundingClientRect();
-  const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
-  const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
-  return { x, y };
+function bindCanvas() {
+  let drag = null;
+  canvas.addEventListener('pointerdown', (e) => {
+    const p = toCanvasCoords(e);
+    const layout = LAYOUTS[state.layout];
+    const polys = layout.polygons(canvas.width, canvas.height);
+    for (let i = 0; i < polys.length; i++) {
+      if (pointInPoly(p.x, p.y, polys[i])) {
+        state.selected = i;
+        drag = { start: p, pan: { ...(state.pan[i] || { x: 0, y: 0 }) } };
+        canvas.setPointerCapture(e.pointerId);
+        updateSampleSelection();
+        break;
+      }
+    }
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const p = toCanvasCoords(e);
+    state.pan[state.selected] = {
+      x: drag.pan.x + (p.x - drag.start.x),
+      y: drag.pan.y + (p.y - drag.start.y),
+    };
+    render();
+  });
+  const endDrag = () => { drag = null; };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const p = toCanvasCoords(e);
+    const layout = LAYOUTS[state.layout];
+    const polys = layout.polygons(canvas.width, canvas.height);
+    for (let i = 0; i < polys.length; i++) {
+      if (pointInPoly(p.x, p.y, polys[i])) {
+        const cur = state.zoom[i] || 1;
+        state.zoom[i] = Math.min(3, Math.max(1, cur * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+        state.selected = i;
+        render();
+        break;
+      }
+    }
+  }, { passive: false });
 }
 
-function hitPanel(event) {
-  const { x, y } = canvasPoint(event);
-  const layout = LAYOUTS[state.layout];
-  const fx = x / canvas.width;
-  const fy = y / canvas.height;
-  for (let i = 0; i < layout.slots.length; i += 1) {
-    if (pointInPolygon(fx, fy, layout.slots[i])) return i;
-  }
-  return -1;
-}
-
-let drag = null;
-canvas.addEventListener('pointerdown', (event) => {
-  const hit = hitPanel(event);
-  if (hit < 0) return;
-  state.selectedPanel = hit;
-  refreshChrome();
-  const panel = state.panels[hit];
-  if (!panel || !panel.photoId) return;
-  canvas.setPointerCapture(event.pointerId);
-  drag = { x: event.clientX, y: event.clientY, ox: panel.ox, oy: panel.oy, panel };
-});
-canvas.addEventListener('pointermove', (event) => {
-  if (!drag) return;
-  const rect = canvas.getBoundingClientRect();
-  const slot = LAYOUTS[state.layout].slots[state.selectedPanel];
-  const xs = slot.map(([fx]) => fx);
-  const ys = slot.map(([, fy]) => fy);
-  const slotW = (Math.max(...xs) - Math.min(...xs)) * rect.width;
-  const slotH = (Math.max(...ys) - Math.min(...ys)) * rect.height;
-  drag.panel.ox = drag.ox + (event.clientX - drag.x) / slotW;
-  drag.panel.oy = drag.oy + (event.clientY - drag.y) / slotH;
-  drag.panel.ox = Math.max(-0.6, Math.min(0.6, drag.panel.ox));
-  drag.panel.oy = Math.max(-0.6, Math.min(0.6, drag.panel.oy));
-  queueRender();
-});
-canvas.addEventListener('pointerup', () => { drag = null; });
-canvas.addEventListener('wheel', (event) => {
-  event.preventDefault();
-  const panel = state.panels[state.selectedPanel];
-  if (!panel || !panel.photoId) return;
-  panel.zoom = Math.max(1, Math.min(2.5, panel.zoom - Math.sign(event.deltaY) * 0.08));
-  $('#panel-zoom').value = String(panel.zoom);
-  queueRender();
-}, { passive: false });
+// -------------------------------------------------------------- export
 
 async function exportPNG() {
-  const { w, h } = currentSize();
+  const size = SIZES[state.size];
   const off = document.createElement('canvas');
-  off.width = w;
-  off.height = h;
-  const offCtx = off.getContext('2d');
-  await document.fonts.ready;
-  renderCover(offCtx, w, h, state);
+  off.width = size.w;
+  off.height = size.h;
+  renderCover(off.getContext('2d'), size.w, size.h, state, images);
   const blob = await new Promise((resolve) => off.toBlob(resolve, 'image/png'));
-  if (!blob) {
-    $('#export-status').textContent = 'Export failed — try again.';
-    return;
-  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const name = `sunset-press-${state.size}-${w}x${h}.png`;
   a.href = url;
-  a.download = name;
+  a.download = `sunset-press-${state.size}.png`;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-  $('#export-status').textContent = `PNG saved — ${name} (${Math.round(blob.size / 1024)} KB)`;
+  setStatus(`PNG saved — sunset-press-${state.size}.png (${size.label})`);
 }
 
-function wireUI() {
-  $$('.size-switch [data-size]').forEach((b) => {
-    b.addEventListener('click', () => {
-      state.size = b.dataset.size;
-      refreshChrome();
-      queueRender();
-    });
-  });
-  $$('.tabs [data-tab]').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      $$('.tabs [data-tab]').forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
-      $$('.tab-page').forEach((p) => { p.hidden = p.dataset.page !== tab.dataset.tab; });
-    });
-  });
-  $('#file-input').addEventListener('change', async (event) => {
-    const files = [...event.target.files];
-    for (const file of files) {
-      if (!file.type.startsWith('image/')) continue;
-      const src = URL.createObjectURL(file);
-      try {
-        const img = await loadImage(src);
-        const photo = addPhoto({
-          id: `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          name: file.name.replace(/\.[^.]+$/, '') || 'Photo',
-          src,
-          img,
-          w: img.naturalWidth,
-          h: img.naturalHeight,
-        });
-        const empty = state.panels.find((p) => !p.photoId);
-        if (empty) {
-          empty.photoId = photo.id;
-          empty.zoom = 1.12;
-          empty.ox = 0;
-          empty.oy = 0;
-        }
-      } catch (e) { /* unreadable file: skip */ }
-    }
-    event.target.value = '';
-    renderUploadThumbs();
-    buildPanelPhotoSelect();
-    refreshChrome();
-    queueRender();
-  });
-  $('#btn-load-samples').addEventListener('click', async () => {
-    await loadSamples();
-    state.panels = defaultPanels(state.layout, true);
-    refreshChrome();
-    queueRender();
-  });
-  $('#panel-photo').addEventListener('change', (event) => {
-    assignPhotoToSelected(event.target.value || null);
-    buildPanelPhotoSelect();
-    refreshChrome();
-  });
-  $('#panel-zoom').addEventListener('input', (event) => {
-    const panel = state.panels[state.selectedPanel];
-    if (panel) panel.zoom = Number(event.target.value);
-    queueRender();
-  });
-  $('#btn-fit').addEventListener('click', () => {
-    const panel = state.panels[state.selectedPanel];
-    if (panel) { panel.zoom = 1; panel.ox = 0; panel.oy = 0; }
-    refreshChrome();
-    queueRender();
-  });
-  $('#btn-clear-panel').addEventListener('click', () => {
-    const panel = state.panels[state.selectedPanel];
-    if (panel) { panel.photoId = null; panel.zoom = 1; panel.ox = 0; panel.oy = 0; }
-    refreshChrome();
-    queueRender();
-  });
-  $('#caption-input').addEventListener('input', (event) => {
-    state.caption = event.target.value;
-    refreshChrome();
-    queueRender();
-  });
-  $('#subcaption-input').addEventListener('input', (event) => {
-    state.subcaption = event.target.value;
-    queueRender();
-  });
-  $('#caption-size').addEventListener('input', (event) => {
-    state.captionScale = Number(event.target.value);
-    queueRender();
-  });
-  $$('.pos-btn').forEach((b) => {
-    b.addEventListener('click', () => {
-      state.captionPos = b.dataset.pos;
-      refreshChrome();
-      queueRender();
-    });
-  });
-  $('#grade-strength').addEventListener('input', (event) => {
-    state.gradeStrength = Number(event.target.value);
-    queueRender();
-  });
-  $('#btn-export').addEventListener('click', exportPNG);
+// ---------------------------------------------------------------- init
+
+function buildSwatches() {
+  const wrap = $('#caption-colors');
+  for (const c of CAPTION_COLORS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch';
+    b.dataset.color = c.hex;
+    b.style.background = c.hex;
+    b.title = c.label;
+    b.setAttribute('aria-label', c.label);
+    wrap.appendChild(b);
+  }
+  const grades = $('#grade-list');
+  for (const g of GRADES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'grade-chip';
+    b.dataset.grade = g.id;
+    b.innerHTML = `<span class="grade-dot" style="background:${g.swatch}"></span>${g.name}`;
+    grades.appendChild(b);
+  }
+  const layouts = $('#layout-list');
+  for (const [id, l] of Object.entries(LAYOUTS)) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'layout-chip';
+    b.dataset.layout = id;
+    b.textContent = l.name;
+    layouts.appendChild(b);
+  }
+  const samples = $('#sample-list');
+  for (const s of SAMPLES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'thumb sample-thumb';
+    b.dataset.sample = s.id;
+    b.innerHTML = `<img src="samples/${s.file}" alt="${s.label}"><span class="thumb-label">${s.label}</span>`;
+    samples.appendChild(b);
+  }
+  const range = $('#caption-size-range');
+  range.min = CAPTION_SCALE.min;
+  range.max = CAPTION_SCALE.max;
+  range.step = 0.05;
+  range.value = CAPTION_SCALE.default;
 }
 
 async function init() {
-  buildLayoutPicker();
-  buildGradePicker();
   buildSwatches();
-  $('#caption-input').value = state.caption;
-  $('#subcaption-input').value = state.subcaption;
-  $('#caption-size').value = String(state.captionScale);
-  $('#grade-strength').value = String(state.gradeStrength);
-  wireUI();
-  buildPanelPhotoSelect();
-  renderSampleThumbs();
-  refreshChrome();
-  loadSamples();
+  bindTabs();
+  bindSizes();
+  bindCaption();
+  bindLayoutsAndGrades();
+  bindPhotos();
+  bindCanvas();
+  $('#btn-export').addEventListener('click', exportPNG);
+  // The editor starts on the landscape defaults (caption included) with
+  // an empty stage — the empty state shows until samples are loaded.
+  applySizeDefaults('landscape', false);
+  if (SHOT === 'cover') {
+    document.body.classList.add('shot-mode');
+    state.size = SHOT_SIZE in SIZES ? SHOT_SIZE : 'landscape';
+    state.captionEdited = false;
+    applySizeDefaults(state.size);
+  }
   try {
     await Promise.all([
-      document.fonts.load('100px Anton'),
-      document.fonts.load('800 20px Inter'),
+      document.fonts.load('16px Anton'),
+      document.fonts.load('700 16px Inter'),
       document.fonts.ready,
+      loadSamples(),
     ]);
-    fontsReady = true;
-  } catch (e) { fontsReady = true; }
-  const shot = new URLSearchParams(location.search).get('shot');
-  if (shot) {
-    await stageShot(state, { loadSamples, assignPhotoToSelected, refreshChrome, queueRender });
+  } catch (e) {
+    // Offline and local: the fonts and samples are vendored, so a failure
+    // here is a real problem — but the editor still renders with fallbacks.
+    setStatus('Some assets failed to load — rendering with fallbacks.');
   }
-  draw();
-  window.__editorReady = true;
+  if (SHOT === 'editor') {
+    state.panels = [...SIZE_DEFAULTS[state.size].panels];
+  }
+  render();
+  setStatus('Ready — pick a size, then Export PNG.');
+  if (SHOT) {
+    window.__shotReady = true;
+  } else {
+    window.__editorReady = true;
+  }
 }
 
 init();
