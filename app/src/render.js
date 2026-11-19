@@ -116,7 +116,8 @@ function drawBadge(ctx, cx, cy, r) {
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = INK;
+  // Golden ring + ticks are sun yellow, not ink.
+  ctx.strokeStyle = SUN;
   ctx.lineWidth = Math.max(1.5, r * 0.12);
   ctx.setLineDash([r * 0.45, r * 0.3]);
   ctx.beginPath();
@@ -134,7 +135,7 @@ function drawBadge(ctx, cx, cy, r) {
     ctx.lineTo(ox + t, oy);
     ctx.moveTo(ox, oy - t);
     ctx.lineTo(ox, oy + t);
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = SUN;
     ctx.stroke();
   }
   ctx.restore();
@@ -151,7 +152,9 @@ function drawCaption(ctx, W, H, state, layout) {
   // Caption box: from the left margin to the hero edge at the caption line.
   const anchorY = bottom ? 0.12 : 0.88;
   const heroRight = edgeAt(hero.points, anchorY) * W;
-  const maxW = Math.min(0.88 * W, Math.max(0.3 * W, heroRight - 0.04 * W));
+  // Leave a 0.03W safety margin to the diagonal: the caption must end
+  // clearly inside the hero, never flush against the panel cut.
+  const maxW = Math.min(0.88 * W, Math.max(0.3 * W, heroRight - 0.07 * W));
   const fit = fitCaption(ctx, state.caption.toUpperCase(), maxW, nominal);
   const lineH = fit.size * 1.02;
   const blockH = lineH * fit.lines.length;
@@ -195,7 +198,8 @@ function drawCaption(ctx, W, H, state, layout) {
   }
   ctx.fillStyle = INK;
   ctx.fillText(state.sub.toUpperCase(), 0.04 * W + 2, subY + 2);
-  ctx.fillStyle = '#FFF6E8';
+  // Golden sub-caption is sun yellow, not paper white.
+  ctx.fillStyle = SUN;
   ctx.fillText(state.sub.toUpperCase(), 0.04 * W, subY);
   try {
     ctx.letterSpacing = '0px';
