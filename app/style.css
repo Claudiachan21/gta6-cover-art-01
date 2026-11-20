@@ -60,7 +60,7 @@ button { font-family: inherit; cursor: pointer; }
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand-mark {
   width: 40px; height: 40px; flex: none;
-  background: transparent; color: var(--orange);
+  background: transparent; color: var(--sun);
   border: none; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 32px;
@@ -149,9 +149,9 @@ button { font-family: inherit; cursor: pointer; }
   border-bottom: 3px solid transparent;
 }
 .tab.active { color: var(--ink); background: #FFE9C9; border-bottom-color: var(--orange); }
-.tab-page { padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+.tab-page { padding: 14px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
 .tab-page[hidden] { display: none; }
-.section { margin-bottom: 12px; }
+.section { margin-bottom: 16px; }
 .section h3 { margin-bottom: 8px; }
 
 .upload-btn {

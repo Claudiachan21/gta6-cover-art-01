@@ -16,7 +16,7 @@ const state = {
   size: 'wide',
   layout: 'trio',
   panels: [
-    { imageKey: null, focal: { x: 0.5, y: 0.60 }, zoom: 1.2 },
+    { imageKey: null, focal: { x: 0.5, y: 0.68 }, zoom: 1.35 },
     { imageKey: null, focal: { x: 0.48, y: 0.5 }, zoom: 1.06 },
     { imageKey: null, focal: { x: 0.0, y: 0.424 }, zoom: 1.06 },
   ],
