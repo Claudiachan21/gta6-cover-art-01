@@ -93,7 +93,10 @@ function render() {
   const empty = $('#empty-state');
   if (empty) empty.style.display = hasPhoto() ? 'none' : '';
   const preview = $('#caption-preview');
-  if (preview) preview.textContent = state.caption;
+  if (preview) {
+    preview.textContent = state.caption;
+    preview.style.color = state.captionColor;
+  }
   const sizeLabel = $('#size-label');
   if (sizeLabel) sizeLabel.textContent = SIZES[state.sizeId].label;
   const zoom = $('#panel-zoom');
@@ -267,6 +270,28 @@ function wire() {
     render();
   });
   canvas.addEventListener('pointerup', () => { drag = null; });
+  canvas.addEventListener('dblclick', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
+    const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
+    const layout = LAYOUTS[state.layoutId];
+    const hit = layout.polys.findIndex((poly) => pointInPoly(x, y, poly, canvas.width, canvas.height));
+    if (hit < 0) return;
+    const p = state.panels[hit];
+    if (!p || !p.img) return;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const [px, py] of layout.polys[hit]) {
+      x0 = Math.min(x0, px * canvas.width); y0 = Math.min(y0, py * canvas.height);
+      x1 = Math.max(x1, px * canvas.width); y1 = Math.max(y1, py * canvas.height);
+    }
+    p.fx = Math.min(1, Math.max(0, (x - x0) / (x1 - x0)));
+    p.fy = Math.min(1, Math.max(0, (y - y0) / (y1 - y0)));
+    p.panX = 0;
+    p.panY = 0;
+    state.selected = hit;
+    renderPanelList();
+    render();
+  });
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
     const p = state.panels[state.selected];
@@ -299,14 +324,16 @@ function wire() {
 
 function buildChips() {
   const sizeWrap = $('#size-chips');
-  Object.values(SIZES).forEach((s) => {
+  // Golden order: Square + Portrait on the first row, Wide below.
+  for (const id of ['square', 'portrait', 'landscape']) {
+    const s = SIZES[id];
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'chip' + (s.id === state.sizeId ? ' active' : '');
     b.dataset.size = s.id;
     b.textContent = s.chip;
     sizeWrap.appendChild(b);
-  });
+  }
   const layoutWrap = $('#layout-chips');
   Object.values(LAYOUTS).forEach((l) => {
     const b = document.createElement('button');
