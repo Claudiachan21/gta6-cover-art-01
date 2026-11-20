@@ -1,72 +1,48 @@
-// Sunset Press — deterministic staging for screenshots. `?shot=` loads a
-// fixed demo state (sample photos, a layout, a grade, a caption) so every
-// screenshot is reproducible. Cover shots hide the editor chrome and show
-// only the poster itself.
-import { defaultPanels } from './presets.js';
+// Sunset Press — deterministic staging for the dossier screenshots.
+// ?shot=cover | editor | portrait | square picks the size, caption and
+// panels, then hides the editor chrome for the cover shots so the screenshot
+// is the exported cover itself, full-bleed.
+import { SIZES, SAMPLES } from './presets.js';
 
-const COVER_SHOTS = {
-  landscape: {
-    size: 'landscape',
-    layout: 'diagonal',
-    grade: 'sunset',
-    caption: 'SUNSET DRIVE',
-    subcaption: 'OCEAN DRIVE · EST. 2026',
-  },
-  portrait: {
-    size: 'portrait',
-    layout: 'diagonal',
-    grade: 'neon',
-    caption: 'NEON NIGHTS',
-    subcaption: 'OCEAN DRIVE',
-    // Hero gets the car (no edge text to slice); boulevard top-right keeps
-    // the sun badge over sky, street goes bottom-right (N2, W7).
-    photos: ['sample-night', 'sample-boulevard', 'sample-street'],
-  },
-  square: {
-    size: 'square',
-    layout: 'diagonal',
-    grade: 'dusk',
-    caption: 'PALM DUSK',
-    subcaption: 'LAST LIGHT · 2026',
-  },
+const STAGING = {
+  cover: { sizeId: 'landscape', caption: 'SUNSET DRIVE', sub: 'OCEAN DRIVE • EST. 2026', panels: ['boulevard', 'nightdrive', 'pier'] },
+  portrait: { sizeId: 'portrait', caption: 'NEON NIGHTS', sub: 'VICE CITY • EST. 2026', panels: ['boulevard', 'nightdrive', 'pier'] },
+  square: { sizeId: 'square', caption: 'PALM DUSK', sub: 'PALMS MOTEL • VACANCY', panels: ['boulevard', 'nightdrive', 'pier'] },
+  editor: { sizeId: 'landscape', caption: 'SUNSET DRIVE', sub: 'OCEAN DRIVE • EST. 2026', panels: ['boulevard', null, 'pier'], selected: 2 },
 };
 
 export async function stageShot(state, api) {
-  const params = new URLSearchParams(location.search);
-  const shot = params.get('shot');
-  if (!shot) return;
-  await api.loadSamples();
-  const preset = COVER_SHOTS[params.get('size') || 'landscape'] || COVER_SHOTS.landscape;
-  if (shot === 'cover') {
-    state.size = preset.size;
-    state.layout = preset.layout;
-    state.grade = preset.grade;
-    state.caption = preset.caption;
-    state.subcaption = preset.subcaption;
-    state.captionPos = 'bottom';
-    state.panels = defaultPanels(preset.layout, true);
-    if (preset.photos) {
-      preset.photos.forEach((id, i) => { if (state.panels[i]) state.panels[i].photoId = id; });
-    }
-    document.body.classList.add('cover-only');
-    const input = document.querySelector('#caption-input');
-    if (input) input.value = state.caption;
-    const sub = document.querySelector('#subcaption-input');
-    if (sub) sub.value = state.subcaption;
-    api.refreshChrome();
-    api.queueRender();
-    requestAnimationFrame(() => { window.__shotReady = true; });
-    return;
+  const shot = new URLSearchParams(location.search).get('shot');
+  if (!shot || !STAGING[shot]) return false;
+  const stage = STAGING[shot];
+  state.sizeId = stage.sizeId;
+  state.caption = stage.caption;
+  state.sub = stage.sub;
+  state.captionEdited = true;
+  state.subEdited = true;
+  state.selected = stage.selected ?? 0;
+  const input = document.querySelector('#caption-input');
+  if (input) input.value = state.caption;
+  const subInput = document.querySelector('#sub-input');
+  if (subInput) subInput.value = state.sub;
+  document.querySelectorAll('[data-size]').forEach((b) => b.classList.toggle('active', b.dataset.size === stage.sizeId));
+
+  for (let i = 0; i < stage.panels.length; i++) {
+    const id = stage.panels[i];
+    if (!id) continue;
+    const sample = SAMPLES.find((s) => s.id === id);
+    if (sample) await api.assignSample(i, sample);
   }
-  if (shot === 'editor') {
-    state.size = 'landscape';
-    state.layout = 'diagonal';
-    state.grade = 'sunset';
-    state.caption = 'SUNSET DRIVE';
-    state.subcaption = 'OCEAN DRIVE · EST. 2026';
-    state.panels = defaultPanels('diagonal', true);
-    api.refreshChrome();
-    api.queueRender();
-    requestAnimationFrame(() => { window.__shotReady = true; });
+  document.querySelectorAll('[data-sample]').forEach((b) => {
+    b.classList.toggle('active', b.dataset.sample === 'pier');
+  });
+
+  if (shot !== 'editor') {
+    document.body.classList.add('shot-cover');
   }
+  api.render();
+  // One more frame so the canvas paint lands before the screenshot.
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  window.__shotReady = true;
+  return true;
 }
