@@ -68,7 +68,7 @@ export const LAYOUTS = {
 // Sample photos: one Vice City sunset world, four moments.
 // focal is the point the cover-fit keeps centred (0..1 of the photo).
 export const SAMPLES = [
-  { id: 'boulevard', label: 'Boulevard', src: 'samples/boulevard.jpg', focal: { x: 0.5, y: 0.35 }, zoom: 1.0 },
+  { id: 'boulevard', label: 'Boulevard', src: 'samples/boulevard.jpg', focal: { x: 0.5, y: 0.60 }, zoom: 1.2 },
   { id: 'nightdrive', label: 'Night Drive', src: 'samples/nightdrive.jpg', focal: { x: 0.48, y: 0.5 }, zoom: 1.06 },
   { id: 'pier', label: 'Pier', src: 'samples/pier.jpg', focal: { x: 0.0, y: 0.424 }, zoom: 1.06 },
   { id: 'street', label: 'Street', src: 'samples/street.jpg', focal: { x: 0.5, y: 0.5 }, zoom: 1.0 },

@@ -128,7 +128,7 @@ function drawCaptionBlock(ctx, W, H, size, state, debug) {
   const x = CAPTION.captionX * W;
 
   const fit = fitCaption(ctx, state.caption || 'SUNSET DRIVE', nominal, maxW);
-  const lineH = fit.size * 1.05;
+  const lineH = fit.size * 1.02;
   const lastBaseline = subBaseline - capGap;
   const firstBaseline = lastBaseline - (fit.lines.length - 1) * lineH;
   debug.captionLines = fit.lines;
