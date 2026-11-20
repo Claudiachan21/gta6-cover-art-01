@@ -27,13 +27,13 @@ export const CAPTION = {
 export const BADGE = {
   cx: 0.058, // badge centre x, fraction of W (mirrored when caption is Top)
   cy: 0.069, // badge centre y, fraction of H
-  discR: 0.011, // sun disc radius, fraction of W
+  discR: 0.0105, // sun disc radius, fraction of W
   ringR: 0.025, // dashed ring radius, fraction of W
   ringW: 0.0018, // ring stroke width, fraction of W
   ringDash: [0.005, 0.009], // ring dash pattern, fractions of W
   tickC: 0.018, // PLUS tick centre distance from badge centre, fraction of W
-  tickArm: 0.0045, // PLUS tick half-arm, fraction of W (long vs its stroke, so it reads as a plus)
-  tickW: 0.002, // PLUS tick stroke width, fraction of W
+  tickArm: 0.0035, // PLUS tick half-arm, fraction of W (long vs its stroke, so it reads as a plus)
+  tickW: 0.0018, // PLUS tick stroke width, fraction of W
 };
 
 export const FRAME_W = 0.01; // ink frame thickness, fraction of W
