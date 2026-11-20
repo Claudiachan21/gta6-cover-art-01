@@ -125,9 +125,9 @@ export const CAPTION = {
 // Sun badge geometry (fractions of W/H).
 export const BADGE = {
   cx: 0.058, cy: 0.069,       // centre, caption Bottom
-  discR: 0.0105, ringR: 0.025,
-  ringWidth: 0.0018, ringDash: [0.005, 0.009],
-  tickCentre: 0.018, tickArm: 0.0035, tickThick: 0.0022,
+  discR: 0.0115, ringR: 0.022,
+  ringWidth: 0.0018, ringDash: [0.004, 0.012],
+  tickCentre: 0.018, tickArm: 0.006, tickThick: 0.0035,
 };
 
 export const FRAME = 0.01; // ink frame thickness, × W
