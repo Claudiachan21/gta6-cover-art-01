@@ -8,7 +8,7 @@ const STAGING = {
   cover: { sizeId: 'landscape', caption: 'SUNSET DRIVE', sub: 'OCEAN DRIVE • EST. 2026', panels: ['boulevard', 'nightdrive', 'pier'] },
   portrait: { sizeId: 'portrait', caption: 'NEON NIGHTS', sub: 'VICE CITY • EST. 2026', panels: ['boulevard', 'nightdrive', 'pier'] },
   square: { sizeId: 'square', caption: 'PALM DUSK', sub: 'PALMS MOTEL • VACANCY', panels: ['boulevard', 'nightdrive', 'pier'] },
-  editor: { sizeId: 'landscape', caption: 'SUNSET DRIVE', sub: 'OCEAN DRIVE • EST. 2026', panels: ['boulevard', null, 'pier'], selected: 2 },
+  editor: { sizeId: 'landscape', caption: 'SUNSET DRIVE', sub: 'OCEAN DRIVE • EST. 2026', panels: ['boulevard', 'nightdrive', 'pier'], selected: 2 },
 };
 
 export async function stageShot(state, api) {
