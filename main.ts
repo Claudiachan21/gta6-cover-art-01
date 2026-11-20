@@ -1,47 +1,58 @@
-// Sunset Press — a GTA 6-style cover art maker for make.fun's
-// gta6-cover-art-01 bounty (Node 22, standard library only). The app is this
-// directory's app/ folder, plain static files a desktop browser loads offline
-// (app/index.html and its ES modules, vendored OFL fonts, no network request),
-// and the program hands it in: it copies app/ and screenshots/ from beside
-// this file to /output and writes /output/dossier.json, the summary the judge
-// reads, with the vendored make.fun library.
+// Sunset Press — hand-in program (Node 22, standard library only).
+// Copies the app and its screenshots into the output directory, then
+// writes dossier.json with the kit's vendored buildDossier library.
 //
-// Serve it locally with `node serve.ts` (or any static server on app/),
-// then open the app in desktop Chrome.
-// Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
+// Run it outside the grader with:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-app.ts';
 
-const here = fileURLToPath(new URL('.', import.meta.url));
-const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+const repoRoot = fileURLToPath(new URL('.', import.meta.url));
+const outDir = resolve(process.env.MAKEFUN_OUTPUT_DIR ?? '/output');
 
-mkdirSync(out, { recursive: true });
-// Clear first: /output is shared by sibling builders, and a plain copy
-// merges — stale screenshots from another entry would push this one over
-// the 4-screenshot cap at dossier time.
-rmSync(join(out, 'app'), { recursive: true, force: true });
-rmSync(join(out, 'screenshots'), { recursive: true, force: true });
-cpSync(join(here, 'app'), join(out, 'app'), { recursive: true });
-mkdirSync(join(out, 'screenshots'), { recursive: true });
-if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
+function fail(message) {
+  throw new Error(`sunset-press main.ts: ${message}`);
+}
 
-// Sunset Press hands in its multi-panel poster maker: the caps below are the
-// scorer's own (reference/gate.json) — only text_max_bytes shapes the bytes;
-// the others refuse an entry the scorer would refuse (more than 4 screenshots
-// or one over 256 KiB; more than 993 files in app/ or 48 MiB of app files, in
-// all, or a path under app/ over 1000 bytes: app/ counts beside /output's own
-// 1000-entry cap, its screenshots/ and dossier.json).
-writeFileSync(
-  join(out, 'dossier.json'),
-  buildDossier(out, {
+function countFiles(dir) {
+  let n = 0;
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    n += statSync(p).isDirectory() ? countFiles(p) : 1;
+  }
+  return n;
+}
+
+function handIn() {
+  const appDir = join(repoRoot, 'app');
+  const shotsDir = join(repoRoot, 'screenshots');
+  if (!existsSync(join(appDir, 'index.html'))) fail('app/index.html is missing');
+  if (!existsSync(shotsDir)) fail('screenshots/ is missing');
+  const shots = readdirSync(shotsDir).filter((f) => !f.startsWith('.'));
+  if (shots.length < 3 || shots.length > 4) fail(`expected 3-4 screenshots, found ${shots.length}`);
+  if (countFiles(appDir) > 993) fail('app/ holds more than 993 files');
+
+  mkdirSync(outDir, { recursive: true });
+  cpSync(appDir, join(outDir, 'app'), { recursive: true });
+  mkdirSync(join(outDir, 'screenshots'), { recursive: true });
+  cpSync(shotsDir, join(outDir, 'screenshots'), { recursive: true });
+
+  // The scorer's own caps (see the kit's RULES.txt): only text_max_bytes
+  // shapes the dossier bytes; the rest refuse an entry the scorer would
+  // refuse outright (more than 4 screenshots, one over 256 KiB, app/
+  // over 993 files or 48 MiB, or a path under app/ over 1000 bytes).
+  const dossier = buildDossier(outDir, {
     text_max_bytes: 163840,
     screenshots: { max: 4, max_bytes: 262144 },
     app_max_files: 993,
     app_max_bytes: 50331648,
     app_path_max_bytes: 1000,
-  }),
-);
+  });
+  writeFileSync(join(outDir, 'dossier.json'), dossier);
+  console.log(`sunset-press: wrote ${outDir} (${shots.length} screenshots, dossier ${dossier.length} bytes)`);
+}
+
+handIn();

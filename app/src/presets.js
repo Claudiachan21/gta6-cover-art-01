@@ -1,128 +1,133 @@
-// Sunset Press — layout, grade and size presets for the cover maker.
-// Every layout is a list of panel slots; each slot is a polygon in fractions
-// of the cover (0..1), so one layout fits every export size.
+// Sunset Press — presets: sizes, diagonal layouts, sample photos, grades.
+// All geometry is normalised (0..1 of the cover) so one preset serves
+// every export size; the renderer multiplies by the real W/H.
+
+export const INK = '#0E1A24';
+export const PAPER = '#FFF6E8';
+export const SUN = '#FFD94D';
+export const PINK = '#FF5A8A';
+export const ORANGE = '#FF6B35';
+export const OCEAN = '#2E7FB8';
+export const TEAL = '#1F8A7A';
+export const PANEL_DARK = '#141E28';
 
 export const SIZES = {
-  square: { label: 'Square · 1080 × 1080', w: 1080, h: 1080, short: '1080×1080' },
-  portrait: { label: 'Portrait · 1080 × 1350', w: 1080, h: 1350, short: '1080×1350' },
-  landscape: { label: 'Landscape · 1920 × 1080', w: 1920, h: 1080, short: '1920×1080' },
+  wide: {
+    id: 'wide', w: 1920, h: 1080, label: 'Wide · 1920×1080',
+    capScale: 0.91, capGap: 0.076, ruleGap: 0.015,
+    caption: 'SUNSET DRIVE', sub: 'OCEAN DRIVE • EST. 2026',
+  },
+  portrait: {
+    id: 'portrait', w: 1080, h: 1350, label: 'Portrait · 1080×1350',
+    capScale: 0.75, capGap: 0.073, ruleGap: 0.011,
+    caption: 'NEON NIGHTS', sub: 'VICE CITY • EST. 2026',
+  },
+  square: {
+    id: 'square', w: 1080, h: 1080, label: 'Square · 1080²',
+    capScale: 1.0, capGap: 0.077, ruleGap: 0.011,
+    caption: 'PALM DUSK', sub: 'PALMS MOTEL • VACANCY',
+  },
 };
 
+// Diagonal panel polygons, each a list of [x, y] in 0..1 space.
+// The hero panel is always first; its right edge slants 0.08W (golden).
 export const LAYOUTS = {
-  diagonal: {
-    label: 'Diagonal 3',
-    hint: 'Hero left, two stacked right',
-    slots: [
-      [[0, 0], [0.64, 0], [0.54, 1], [0, 1]],
-      [[0.64, 0], [1, 0], [1, 0.5], [0.59, 0.5]],
-      [[0.59, 0.5], [1, 0.5], [1, 1], [0.54, 1]],
-    ],
-    dividers: [
-      [[0.64, 0], [0.54, 1]],
-      [[0.59, 0.5], [1, 0.5]],
-    ],
-  },
-  grid: {
-    label: 'Grid 4',
-    hint: 'Four panels, diagonal split',
-    slots: [
-      [[0, 0], [0.58, 0], [0.48, 0.5], [0, 0.5]],
-      [[0.58, 0], [1, 0], [1, 0.5], [0.48, 0.5]],
-      [[0, 0.5], [0.48, 0.5], [0.42, 1], [0, 1]],
-      [[0.48, 0.5], [1, 0.5], [1, 1], [0.42, 1]],
-    ],
-    dividers: [
-      [[0.58, 0], [0.48, 0.5]],
-      [[0.48, 0.5], [0.42, 1]],
-      [[0, 0.5], [1, 0.5]],
-    ],
-  },
-  hero: {
-    label: 'Hero 3',
-    hint: 'One wide hero, two below',
-    slots: [
-      [[0, 0], [1, 0], [1, 0.5], [0, 0.7]],
-      [[0, 0.7], [0.5, 0.6], [0.5, 1], [0, 1]],
-      [[0.5, 0.6], [1, 0.5], [1, 1], [0.5, 1]],
-    ],
-    dividers: [
-      [[0, 0.7], [1, 0.5]],
-      [[0.5, 0.6], [0.5, 1]],
+  trio: {
+    id: 'trio', label: 'Sunset Trio',
+    panels: [
+      [[0, 0], [0.60, 0], [0.52, 1], [0, 1]],
+      [[0.60, 0], [1, 0], [1, 0.5], [0.56, 0.5]],
+      [[0.56, 0.5], [1, 0.5], [1, 1], [0.52, 1]],
     ],
   },
   duo: {
-    label: 'Duo 2',
-    hint: 'Two panels, diagonal cut',
-    slots: [
-      [[0, 0], [0.58, 0], [0.42, 1], [0, 1]],
-      [[0.58, 0], [1, 0], [1, 1], [0.42, 1]],
+    id: 'duo', label: 'Split Duo',
+    panels: [
+      [[0, 0], [0.55, 0], [0.48, 1], [0, 1]],
+      [[0.55, 0], [1, 0], [1, 1], [0.48, 1]],
     ],
-    dividers: [
-      [[0.58, 0], [0.42, 1]],
+  },
+  strip: {
+    id: 'strip', label: 'Hero Strip',
+    panels: [
+      [[0, 0], [1, 0], [1, 0.58], [0, 0.66]],
+      [[0, 0.66], [1, 0.58], [1, 1], [0, 1]],
+    ],
+  },
+  quad: {
+    id: 'quad', label: 'Vice Quad',
+    panels: [
+      [[0, 0], [0.55, 0], [0.50, 0.5], [0, 0.5]],
+      [[0.55, 0], [1, 0], [1, 0.5], [0.50, 0.5]],
+      [[0, 0.5], [0.50, 0.5], [0.55, 1], [0, 1]],
+      [[0.50, 0.5], [1, 0.5], [1, 1], [0.55, 1]],
     ],
   },
 };
 
-export const GRADES = {
-  sunset: {
-    label: 'Sunset Strip',
-    hint: 'Warm orange wash, sun glow',
-    washTop: 'rgba(255, 107, 53, 0)',
-    washBottom: 'rgba(255, 107, 53, 0.24)',
-    glow: 'rgba(255, 217, 77, 0.38)',
-    glowAt: [0.76, 0.16],
-    tint: null,
-    vignette: 0.3,
-  },
-  neon: {
-    label: 'Neon Nights',
-    hint: 'Pink dusk, cyan streets',
-    washTop: 'rgba(255, 90, 138, 0.20)',
-    washBottom: 'rgba(46, 127, 184, 0.22)',
-    glow: 'rgba(255, 90, 138, 0.30)',
-    glowAt: [0.2, 0.14],
-    tint: null,
-    vignette: 0.34,
-  },
-  noir: {
-    label: 'Vice Noir',
-    hint: 'Desaturated, hard contrast',
-    washTop: 'rgba(14, 26, 36, 0.10)',
-    washBottom: 'rgba(14, 26, 36, 0.30)',
-    glow: 'rgba(255, 217, 77, 0.12)',
-    glowAt: [0.5, 0.5],
-    tint: 'grayscale(0.85) contrast(1.14)',
-    vignette: 0.42,
-  },
-  dusk: {
-    label: 'Palm Dusk',
-    hint: 'Pink to amber evening',
-    washTop: 'rgba(255, 90, 138, 0.16)',
-    washBottom: 'rgba(255, 140, 40, 0.26)',
-    glow: 'rgba(255, 217, 77, 0.26)',
-    glowAt: [0.5, 0.08],
-    tint: null,
-    vignette: 0.3,
-  },
-};
-
+// Sample photos: one Vice City sunset world, four moments.
+// focal is the point the cover-fit keeps centred (0..1 of the photo).
 export const SAMPLES = [
-  { id: 'sample-street', name: 'Palms Motel', src: 'samples/street.jpg', fy: 0.1, fx: 0.5, thumbPos: 'center' },
-  { id: 'sample-night', name: 'Night Drive', src: 'samples/nightdrive.jpg', fy: 0.5, fx: 0.5, thumbPos: 'center' },
-  { id: 'sample-boulevard', name: 'Boulevard', src: 'samples/boulevard.jpg', fy: 0.05, fx: 0.5, thumbPos: 'top' },
-  { id: 'sample-pier', name: 'Pier', src: 'samples/pier.jpg', fy: 0.3, fx: 0.5, thumbPos: 'center 30%' },
+  { id: 'boulevard', label: 'Boulevard', src: 'samples/boulevard.jpg', focal: { x: 0.5, y: 0.35 }, zoom: 1.0 },
+  { id: 'nightdrive', label: 'Night Drive', src: 'samples/nightdrive.jpg', focal: { x: 0.48, y: 0.5 }, zoom: 1.06 },
+  { id: 'pier', label: 'Pier', src: 'samples/pier.jpg', focal: { x: 0.0, y: 0.424 }, zoom: 1.06 },
+  { id: 'street', label: 'Street', src: 'samples/street.jpg', focal: { x: 0.5, y: 0.5 }, zoom: 1.0 },
 ];
 
-export const DEFAULT_CAPTION = 'SUNSET DRIVE';
-export const DEFAULT_SUBCAPTION = 'OCEAN DRIVE · EST. 2026';
+// Five colour grades. Each wash is drawn full-canvas with its blend mode
+// after the panels and before the lettering, so the type stays clean.
+export const GRADES = [
+  { id: 'neon', label: 'Neon', washes: [
+    { color: PINK, alpha: 0.30, blend: 'screen' },
+    { color: OCEAN, alpha: 0.16, blend: 'soft-light' },
+  ] },
+  { id: 'sunset', label: 'Sunset', washes: [
+    { color: ORANGE, alpha: 0.28, blend: 'screen' },
+    { color: PINK, alpha: 0.14, blend: 'soft-light' },
+  ] },
+  { id: 'dusk', label: 'Dusk', washes: [
+    { color: '#7A4DBB', alpha: 0.22, blend: 'screen' },
+    { color: OCEAN, alpha: 0.20, blend: 'soft-light' },
+  ] },
+  { id: 'mono', label: 'Mono', washes: [
+    { color: '#888888', alpha: 0.35, blend: 'saturation' },
+    { color: INK, alpha: 0.10, blend: 'multiply' },
+  ] },
+  { id: 'pastel', label: 'Pastel', washes: [
+    { color: SUN, alpha: 0.18, blend: 'screen' },
+    { color: TEAL, alpha: 0.12, blend: 'soft-light' },
+  ] },
+];
 
-export function defaultPanels(layoutId, fill = false) {
-  const n = LAYOUTS[layoutId].slots.length;
-  const photos = ['sample-street', 'sample-night', 'sample-boulevard', 'sample-pier'];
-  return Array.from({ length: n }, (_, i) => ({
-    photoId: fill ? photos[i % photos.length] : null,
-    zoom: 1.12,
-    ox: 0,
-    oy: 0,
-  }));
-}
+export const CAPTION_COLORS = [
+  { id: 'paper', label: 'Paper', value: PAPER },
+  { id: 'white', label: 'White', value: '#FFFFFF' },
+  { id: 'sun', label: 'Sun', value: SUN },
+  { id: 'pink', label: 'Pink', value: PINK },
+  { id: 'teal', label: 'Teal', value: TEAL },
+];
+
+// Caption geometry (fractions of H unless noted, all measured vs golden).
+export const CAPTION = {
+  nominal: 0.16,        // × H × capScale × size slider
+  sizeMin: 0.7, sizeMax: 1.3, sizeDefault: 1.1,
+  wrapThreshold: 0.72,  // wrap when the one-line fit drops below this of nominal
+  oneLineFloor: 0.55,   // never shrink a one-liner below this of nominal
+  subScale: 0.38,       // sub size relative to the drawn caption size
+  subBaseline: 0.939,   // × H
+  subTracking: 0.08,    // em
+  captionX: 0.040,      // × W, left edge of the caption block
+  ruleHeight: 0.012,    // × H
+  ruleWidth: 0.34,      // of the widest caption line
+  maxWTrim: 0.07,       // caption max width = hero right edge − this × W
+};
+
+// Sun badge geometry (fractions of W/H).
+export const BADGE = {
+  cx: 0.058, cy: 0.069,       // centre, caption Bottom
+  discR: 0.0105, ringR: 0.025,
+  ringWidth: 0.0018, ringDash: [0.005, 0.009],
+  tickCentre: 0.018, tickArm: 0.0035, tickThick: 0.0022,
+};
+
+export const FRAME = 0.01; // ink frame thickness, × W
